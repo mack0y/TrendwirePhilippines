@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrendWire Philippines</title>
+  <meta name="description" content="Trending stories and news from across the Philippines">
+  <meta property="og:title" content="TrendWire Philippines">
+  <meta property="og:description" content="Trending stories and news from across the Philippines">
+  <meta property="og:type" content="website">
+  <meta name="theme-color" content="#CE1126">
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇵🇭</text></svg>">
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <button class="logo" onclick="navigate('')">
+        <span class="flag">🇵🇭</span>
+        <span>TrendWire <span class="accent">PH</span></span>
+      </button>
+      <span class="tagline">Stories that move the nation</span>
+    </div>
+  </header>
+
+  <main id="app">
+    <div class="container">
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-card"></div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <p>© 2026 <a href="https://github.com/mack0y/TrendwirePhilippines">TrendWire Philippines</a> — Automated News Publishing</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
