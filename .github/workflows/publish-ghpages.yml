@@ -1,0 +1,41 @@
+name: 📤 Publish Trend Article to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]          # automatic on push
+  workflow_dispatch:           # manual trigger if you need
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'   # opt‑in to Node 24 now
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests            # add anything else you need
+
+      - name: Run publish-article.py
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY:        ${{ secrets.OPENROUTER_API_KEY }}
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+        run: |
+          python scripts/publish-article.py
+
+      - name: Commit & push changes
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "📢 Publish latest trend article"
+          branch: main
