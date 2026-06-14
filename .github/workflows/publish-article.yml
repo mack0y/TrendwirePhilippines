@@ -1,0 +1,28 @@
+name: Publish Article
+on:
+  workflow_dispatch:
+    inputs:
+      article_file: { description: 'Article JSON path', required: true, default: 'drafts/latest.json' }
+      trend_id: { description: 'Trend ID (optional)', required: false }
+  repository_dispatch:
+    types: [publish-article]
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install supabase python-dotenv
+      - env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: |
+          FILE="${{ inputs.article_file || github.event.client_payload.article_file }}"
+          TID="${{ inputs.trend_id || github.event.client_payload.trend_id }}"
+          python scripts/publish-article.py --file "$FILE" ${TID:+--trend-id "$TID"}
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.repos.createPagesDeployment({ owner: context.repo.owner, repo: context.repo.repo });
