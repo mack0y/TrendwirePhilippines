@@ -16,7 +16,7 @@ serve(async (req) => {
     const url = Deno.env.get('SUPABASE_URL') ?? ''
     const svcKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const orKey = Deno.env.get('OPENROUTER_API_KEY') ?? ''
-    const orModel = Deno.env.get('OPENROUTER_MODEL') ?? 'openrouter/auto'
+    const orModel = Deno.env.get('OPENROUTER_MODEL') ?? 'openrouter/owl-alpha'
 
     if (!orKey) throw new Error('OPENROUTER_API_KEY not set')
 
