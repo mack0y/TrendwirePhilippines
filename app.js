@@ -399,11 +399,12 @@ async function renderAdmin() {
     render()
   }
 
-  // Step 1: Show trends from DB immediately (fast!)
-  render()
+  // Step 1: Load trends from DB immediately (fast!), no flash
   await loadFromDB()
-  // Step 2: Silently fetch from Google Trends in the background
+  // Step 2: Silently fetch from Google Trends in background
+  // — abandoned if user clicks the fetch button (fetching becomes true)
   fetchFromGoogleTrends().then(result => {
+    if (fetching || currentRoute !== 'admin') return null
     const count = result?.trends?.length ?? 0
     if (count > 0) {
       showToast(`✅ ${count} new trend${count !== 1 ? 's' : ''} fetched from Google Trends PH!`, 'success')
@@ -411,6 +412,7 @@ async function renderAdmin() {
     }
     return null
   }).then(freshTrends => {
+    if (fetching || currentRoute !== 'admin') return
     if (freshTrends) {
       trends = freshTrends
       render()
