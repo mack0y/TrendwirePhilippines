@@ -141,7 +141,14 @@ function fallbackCopy(text) {
 }
 
 // ── Admin / Trend Search ─────────────────────────
-async function fetchTrends(query) {
+async function fetchFromGoogleTrends() {
+  if (!sb) throw new Error('Supabase not initialized')
+  const { data, error } = await sb.functions.invoke('fetch-trends', {})
+  if (error) throw error
+  return data
+}
+
+async function searchTrendsDB(query) {
   if (!sb) throw new Error('Supabase not initialized')
 
   let q = sb
@@ -253,15 +260,34 @@ async function renderAdmin() {
   let generating = null
   let generatedArticle = null
   let searchQuery = ''
+  let trying = false
 
   async function loadTrends(query) {
     searchQuery = query
+    trying = true
+    render()
     try {
-      trends = await fetchTrends(query)
+      // First try fetching fresh data from Google Trends PH
+      const gtResult = await fetchFromGoogleTrends()
+      // Now query the DB which has the freshest data
+      trends = await searchTrendsDB(query)
+      trying = false
       render()
+      // If no results match the search, offer to show all recent trends
+      if (query && !trends.length && gtResult.trends?.length) {
+        // Trends were fetched but nothing matched — keep showing whatever is in DB
+      }
     } catch (e) {
       console.error('Failed to load trends:', e)
-      renderError(e.message)
+      // Fallback: just search the DB directly
+      try {
+        trends = await searchTrendsDB(query)
+        trying = false
+        render()
+      } catch (e2) {
+        trying = false
+        renderError(e2.message)
+      }
     }
   }
 
@@ -327,7 +353,7 @@ async function renderAdmin() {
         <button class="back-btn" onclick="navigate('')">← Back to articles</button>
         <div class="admin-header">
           <h1 class="page-title">🛠️ Admin — Trend Search</h1>
-          <p class="page-subtitle">Search trends and generate articles from them</p>
+          <p class="page-subtitle">Search Google Trends PH — fetches live trending data, shows matching results</p>
         </div>
 
         <div class="admin-search">
