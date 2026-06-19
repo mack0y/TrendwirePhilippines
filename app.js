@@ -146,7 +146,7 @@ async function fetchTrends(query) {
 
   let q = sb
     .from('trends')
-    .select('id, title, summary, category, impact_rating, status, created_at')
+    .select('id, title, summary, category, status, created_at')
     .order('created_at', { ascending: false })
     .limit(50)
 
@@ -288,7 +288,6 @@ async function renderAdmin() {
           <div class="trend-info">
             <div class="trend-top">
               <span class="category-badge">${t.category || 'General'}</span>
-              ${t.impact_rating ? `<span class="impact-badge impact-${(t.impact_rating||'').toLowerCase()}">${t.impact_rating}</span>` : ''}
             </div>
             <h3>${t.title}</h3>
             ${t.summary ? `<p class="trend-summary">${t.summary}</p>` : ''}
