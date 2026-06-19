@@ -267,28 +267,14 @@ async function renderAdmin() {
     trying = true
     render()
     try {
-      // First try fetching fresh data from Google Trends PH
-      const gtResult = await fetchFromGoogleTrends()
-      // Now query the DB which has the freshest data
+      await fetchFromGoogleTrends()
       trends = await searchTrendsDB(query)
-      trying = false
-      render()
-      // If no results match the search, offer to show all recent trends
-      if (query && !trends.length && gtResult.trends?.length) {
-        // Trends were fetched but nothing matched — keep showing whatever is in DB
-      }
     } catch (e) {
-      console.error('Failed to load trends:', e)
-      // Fallback: just search the DB directly
-      try {
-        trends = await searchTrendsDB(query)
-        trying = false
-        render()
-      } catch (e2) {
-        trying = false
-        renderError(e2.message)
-      }
+      console.error('Google Trends fetch failed, using DB directly:', e)
+      trends = await searchTrendsDB(query)
     }
+    trying = false
+    render()
   }
 
   async function handleGenerate(trendId) {
@@ -326,7 +312,7 @@ async function renderAdmin() {
           </button>
         </div>
       `).join('')
-      : `<div class="empty-state"><div class="icon">📊</div><h2>No trends found</h2><p>Try a different search term or fetch new trends using the Edge Function.</p></div>`
+      : `<div class="empty-state"><div class="icon">📊</div><h2>No trends found</h2><p>${trying ? 'Fetching latest from Google Trends PH…' : (searchQuery ? 'No trends match your search. Try a different term or leave empty to see all.' : 'Press 🔍 Search to fetch the latest PH trends from Google.')}</p></div>`
 
     const articleResult = generatedArticle
       ? `
