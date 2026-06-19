@@ -534,41 +534,40 @@ body {
   margin-bottom: 20px;
 }
 
-.admin-search {
+.admin-toolbar {
   display: flex;
-  gap: 8px;
+  align-items: center;
+  gap: 12px;
   margin-bottom: 24px;
 }
 
-.admin-search-input {
-  flex: 1;
-  padding: 10px 16px;
-  border: 2px solid var(--border);
-  border-radius: var(--radius-sm);
-  font-size: 14px;
-  outline: none;
-  transition: border-color var(--transition);
-  background: var(--surface);
-}
-
-.admin-search-input:focus {
-  border-color: var(--blue);
-}
-
-.search-btn {
-  background: var(--blue);
+.fetch-btn {
+  background: linear-gradient(135deg, var(--red), var(--red-dark));
   color: white;
   border: none;
-  padding: 10px 20px;
+  padding: 12px 24px;
   border-radius: var(--radius-sm);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: background var(--transition);
+  transition: all var(--transition);
+  box-shadow: 0 2px 8px rgba(206, 17, 38, 0.3);
 }
 
-.search-btn:hover {
-  background: var(--blue-dark);
+.fetch-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(206, 17, 38, 0.4);
+}
+
+.fetch-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.fetch-status {
+  font-size: 13px;
+  color: var(--text-secondary);
 }
 
 .trend-list {

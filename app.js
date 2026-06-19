@@ -259,22 +259,27 @@ async function renderAdmin() {
   let trends = []
   let generating = null
   let generatedArticle = null
-  let searchQuery = ''
-  let trying = false
+  let fetching = false
 
-  async function loadTrends(query) {
-    searchQuery = query
-    trying = true
+  async function loadTrends() {
+    fetching = true
     render()
     try {
-      await fetchFromGoogleTrends()
-      trends = await searchTrendsDB(query)
+      const result = await fetchFromGoogleTrends()
+      const count = result?.trends?.length ?? 0
+      trends = await searchTrendsDB('')
+      fetching = false
+      render()
+      if (trends.length && count === 0) {
+        // Show subtle toast-like feedback
+        console.log('✅ Trends up to date — no new ones from Google')
+      }
     } catch (e) {
-      console.error('Google Trends fetch failed, using DB directly:', e)
-      trends = await searchTrendsDB(query)
+      console.error('Google Trends fetch failed, loading DB:', e)
+      trends = await searchTrendsDB('')
+      fetching = false
+      render()
     }
-    trying = false
-    render()
   }
 
   async function handleGenerate(trendId) {
@@ -312,7 +317,7 @@ async function renderAdmin() {
           </button>
         </div>
       `).join('')
-      : `<div class="empty-state"><div class="icon">📊</div><h2>No trends found</h2><p>${trying ? 'Fetching latest from Google Trends PH…' : (searchQuery ? 'No trends match your search. Try a different term or leave empty to see all.' : 'Press 🔍 Search to fetch the latest PH trends from Google.')}</p></div>`
+      : `<div class="empty-state"><div class="icon">📊</div><h2>No trends yet</h2><p>Click "Fetch Latest PH Trends" to pull trending topics from Google Trends Philippines.</p></div>`
 
     const articleResult = generatedArticle
       ? `
@@ -329,7 +334,7 @@ async function renderAdmin() {
             <span>📂 ${generatedArticle.category || 'General'}</span>
           </div>
           <div class="result-actions">
-            <button class="generate-btn" onclick="renderAdmin.__clearResult()">Continue searching</button>
+            <button class="generate-btn" onclick="renderAdmin.__clearResult()">Dismiss</button>
           </div>
         </div>
       ` : ''
@@ -338,15 +343,15 @@ async function renderAdmin() {
       <div class="container">
         <button class="back-btn" onclick="navigate('')">← Back to articles</button>
         <div class="admin-header">
-          <h1 class="page-title">🛠️ Admin — Trend Search</h1>
-          <p class="page-subtitle">Search Google Trends PH — fetches live trending data, shows matching results</p>
+          <h1 class="page-title">🛠️ Admin Dashboard</h1>
+          <p class="page-subtitle">Fetch trending topics from Google Trends PH and generate articles</p>
         </div>
 
-        <div class="admin-search">
-          <input type="text" class="admin-search-input" id="adminSearchInput"
-                 placeholder="Search trends…" value="${searchQuery}"
-                 onkeydown="if(event.key==='Enter')renderAdmin.__doSearch()">
-          <button class="search-btn" onclick="renderAdmin.__doSearch()">🔍 Search</button>
+        <div class="admin-toolbar">
+          <button class="fetch-btn" onclick="renderAdmin.__fetch()" ${fetching ? 'disabled' : ''}>
+            ${fetching ? '⏳ Fetching…' : '📥 Fetch Latest PH Trends'}
+          </button>
+          ${fetching ? '<span class="fetch-status">Fetching from Google Trends PH…</span>' : trends.length ? `<span class="fetch-status">${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded</span>` : ''}
         </div>
 
         ${articleResult}
@@ -360,16 +365,13 @@ async function renderAdmin() {
 
   // Attach handlers to the renderAdmin function so inline onclick can call them
   renderAdmin.__handleGenerate = handleGenerate
-  renderAdmin.__doSearch = () => {
-    const input = document.getElementById('adminSearchInput')
-    loadTrends(input ? input.value.trim() : '')
-  }
+  renderAdmin.__fetch = loadTrends
   renderAdmin.__clearResult = () => {
     generatedArticle = null
     render()
   }
 
-  await loadTrends('')
+  await loadTrends()
 }
 
 // ── Render: Article Detail ────────────────────────
