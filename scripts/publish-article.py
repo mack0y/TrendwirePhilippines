@@ -9,6 +9,9 @@ try:
 except ImportError:
     print("❌ Run: pip install supabase"); sys.exit(1)
 
+DRAFTS_DIR = Path('drafts')
+PUBLISHED_DIR = DRAFTS_DIR / 'published'
+
 def create_slug(title):
     slug = re.sub(r'[^a-z0-9]+', '-', title.lower()).strip('-')
     return slug[:80]
@@ -25,6 +28,25 @@ def validate(a):
         if p in a.get('content','').lower(): errs.append(f"Forbidden: '{p}'")
     return errs
 
+def latest_draft_path():
+    """Newest unpublished draft in drafts/ (top-level only, skips drafts/published/)."""
+    drafts = sorted(
+        DRAFTS_DIR.glob('*.json'),
+        key=lambda p: p.stat().st_mtime, reverse=True
+    )
+    return drafts[0] if drafts else None
+
+def archive_draft(path: Path):
+    """Move a successfully published draft into drafts/published/ so --latest won't re-publish it."""
+    PUBLISHED_DIR.mkdir(parents=True, exist_ok=True)
+    dest = PUBLISHED_DIR / path.name
+    if dest.exists():
+        # Avoid clobbering an earlier archived draft with the same name.
+        stem, suffix = path.stem, path.suffix
+        dest = PUBLISHED_DIR / f"{stem}-{int(datetime.now().timestamp())}{suffix}"
+    path.rename(dest)
+    print(f"📦 Archived draft → {dest}")
+
 def main():
     p = argparse.ArgumentParser()
     g = p.add_mutually_exclusive_group(required=True)
@@ -36,14 +58,18 @@ def main():
     key = os.environ.get('SUPABASE_SERVICE_KEY')
     if not key: print("❌ SUPABASE_SERVICE_KEY not set"); sys.exit(1)
 
+    source_path = None
     if args.file:
-        a = json.load(open(args.file,'r',encoding='utf-8'))
+        source_path = Path(args.file)
+        a = json.load(open(source_path,'r',encoding='utf-8'))
     elif args.json:
         a = json.loads(args.json)
     else:
-        drafts = sorted(Path('drafts').glob('*.json'), key=lambda p: p.stat().st_mtime, reverse=True)
-        if not drafts: print("❌ No drafts"); sys.exit(1)
-        a = json.load(open(drafts[0],'r',encoding='utf-8'))
+        source_path = latest_draft_path()
+        if not source_path:
+            print("ℹ️  No unpublished drafts in drafts/ — nothing to publish.")
+            sys.exit(0)
+        a = json.load(open(source_path,'r',encoding='utf-8'))
 
     errs = validate(a)
     if errs:
@@ -71,6 +97,9 @@ def main():
     r = sb.table('articles').insert(rec).execute()
     if r.data:
         print(f"✅ Published! ID: {r.data[0]['id']} | Slug: {r.data[0]['slug']}")
+        # Only auto-archive when published from a file on disk (--latest / --file).
+        if source_path and source_path.exists():
+            archive_draft(source_path)
     else:
         print("❌ Publish failed"); sys.exit(1)
 

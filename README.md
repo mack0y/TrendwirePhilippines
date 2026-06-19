@@ -85,10 +85,10 @@ pip install supabase
 
 ### Manual: Publish a Draft Article
 
-The `publish-article.py` script validates and publishes articles to Supabase.
+The `publish-article.py` script validates and publishes articles to Supabase. On a successful publish from a file (`--latest` or `--file`), the draft is automatically moved into `drafts/published/` so it won't be re-published by the next CI run.
 
 ```bash
-# Publish the latest draft from the drafts/ folder
+# Publish the latest unpublished draft from the drafts/ folder
 python scripts/publish-article.py --latest
 
 # Publish a specific draft file
@@ -161,7 +161,9 @@ The `publish-article.yml` workflow can be triggered manually via the GitHub Acti
 │   │   └── generate-article/      # Edge Function: calls LLM to write articles
 │   │       └── index.ts
 │   └── migrations/
-│       └── 0001_initial_schema.sql
+│       ├── 0001_initial_schema.sql     # Tables, indexes, RLS
+│       ├── 0002_add_missing_columns.sql # Idempotent safety net for articles columns
+│       └── 0003_fix_trend_id_nullable.sql
 ├── .gitignore
 └── README.md
 ```
