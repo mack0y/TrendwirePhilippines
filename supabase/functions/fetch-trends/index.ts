@@ -17,12 +17,36 @@ function categorize(title: string) {
 }
 
 function parseTraffic(traffic: string): number {
-  // "500+" → 500, "10K+" → 10000, "1M+" → 1000000
+  // Convert Google Trends traffic string ("500+", "10K+", "1M+") to impact_score (0-100)
   const cleaned = traffic.replace(/[+,]/g, '').trim()
-  if (cleaned.endsWith('K')) return parseInt(cleaned) * 1000
-  if (cleaned.endsWith('M')) return parseInt(cleaned) * 1000000
-  const num = parseInt(cleaned)
-  return isNaN(num) ? 0 : num
+  let volume = 0
+  if (cleaned.endsWith('K')) volume = parseInt(cleaned) * 1000
+  else if (cleaned.endsWith('M')) volume = parseInt(cleaned) * 1000000
+  else volume = parseInt(cleaned) || 0
+
+  if (volume >= 1000000) return 100
+  if (volume >= 500000) return 90
+  if (volume >= 100000) return 80
+  if (volume >= 50000) return 70
+  if (volume >= 10000) return 60
+  if (volume >= 5000) return 50
+  if (volume >= 1000) return 40
+  if (volume >= 500) return 30
+  if (volume > 0) return 20
+  return 50
+}
+
+function extractNewsItems(xml: string): Array<{url: string; name: string}> {
+  const items: Array<{url: string; name: string}> = []
+  const newsRe = /<ht:news_item>([\s\S]*?)<\/ht:news_item>/g
+  let n
+  while ((n = newsRe.exec(xml)) !== null) {
+    const newsXml = n[1]
+    const url = /<ht:news_item_url>(.*?)<\/ht:news_item_url>/.exec(newsXml)?.[1] || ''
+    const name = /<ht:news_item_source>(.*?)<\/ht:news_item_source>/.exec(newsXml)?.[1] || ''
+    if (url) items.push({ url, name })
+  }
+  return items
 }
 
 serve(async (req) => {
@@ -48,32 +72,29 @@ serve(async (req) => {
 
       const link = /<link>(.*?)<\/link>/.exec(xml)?.[1] || ''
       const desc = /<description>(.*?)<\/description>/.exec(xml)?.[1] || ''
-      const date = /<pubDate>(.*?)<\/pubDate>/.exec(xml)?.[1] || ''
       const trafficRaw = /<ht:approx_traffic>(.*?)<\/ht:approx_traffic>/.exec(xml)?.[1] || ''
-      const searchVolume = parseTraffic(trafficRaw)
+      const impactScore = parseTraffic(trafficRaw)
       const category = categorize(title)
+      const sourceLinks = extractNewsItems(xml)
+      if (link) sourceLinks.unshift({ url: link, name: 'Google Trends PH' })
 
-      // Check for duplicate by title (slug column doesn't exist in live DB)
-      const { data: existing } = await sb.from('trends').select('id').ilike('title', title).maybeSingle()
-      if (!existing) {
-        const { data: saved, error: insertErr } = await sb.from('trends').insert({
-          title,
-          summary: desc,
-          category,
-          search_volume: searchVolume,
-          status: 'active',
-        }).select().single()
+      // Check for duplicate by exact title
+      const { data: existing } = await sb.from('trends').select('id').eq('title', title).maybeSingle()
+      if (existing) continue
 
-        if (saved) {
-          await sb.from('trend_sources').insert({
-            trend_id: saved.id, source_name: 'Google Trends PH',
-            source_url: link, snippet: desc,
-            published_at: date ? new Date(date).toISOString() : new Date().toISOString(),
-          })
-          trends.push(saved)
-        } else if (insertErr) {
-          console.error('Insert failed:', insertErr.message)
-        }
+      const { data: saved, error: insertErr } = await sb.from('trends').insert({
+        title,
+        summary: desc,
+        category,
+        impact_score: impactScore,
+        source_links: sourceLinks,
+        status: 'published',
+      }).select().single()
+
+      if (saved) {
+        trends.push(saved)
+      } else if (insertErr) {
+        console.error('Insert failed:', insertErr.message, 'for:', title)
       }
     }
 
