@@ -260,8 +260,26 @@ async function renderAdmin() {
   let generating = null
   let generatedArticle = null
   let fetching = false
+  let toast = null
 
-  async function loadTrends() {
+  function showToast(message, type = 'info') {
+    toast = { message, type }
+    render()
+    setTimeout(() => { toast = null; const el = document.querySelector('.toast'); if (el) el.remove() }, 4000)
+  }
+
+  // Load trends from DB immediately (fast), then fetch from Google in background
+  async function loadFromDB() {
+    try {
+      trends = await searchTrendsDB('')
+      render()
+    } catch (e) {
+      console.error('Failed to load trends from DB:', e)
+    }
+  }
+
+  // Explicit fetch button: fetch from Google Trends, then refresh from DB
+  async function fetchTrends() {
     fetching = true
     render()
     try {
@@ -269,16 +287,17 @@ async function renderAdmin() {
       const count = result?.trends?.length ?? 0
       trends = await searchTrendsDB('')
       fetching = false
-      render()
-      const status = document.querySelector('.fetch-status')
-      if (status) {
-        status.textContent = count > 0 ? `✅ ${count} new trend${count !== 1 ? 's' : ''} fetched!` : '✅ Trends are up to date'
-        setTimeout(() => { if (document.contains(status)) status.textContent = `${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded` }, 3000)
+      if (count > 0) {
+        showToast(`✅ ${count} new trend${count !== 1 ? 's' : ''} fetched from Google Trends PH!`, 'success')
+      } else {
+        showToast('✅ Trends are up to date — no new trending topics found', 'info')
       }
+      render()
     } catch (e) {
-      console.error('Google Trends fetch failed, loading DB:', e)
+      console.error('Google Trends fetch failed, refreshing from DB:', e)
       trends = await searchTrendsDB('')
       fetching = false
+      showToast('⚠️ Google Trends fetch failed — showing stored trends', 'error')
       render()
     }
   }
@@ -320,6 +339,10 @@ async function renderAdmin() {
       `).join('')
       : `<div class="empty-state"><div class="icon">📊</div><h2>No trends yet</h2><p>Click "Fetch Latest PH Trends" to pull trending topics from Google Trends Philippines.</p></div>`
 
+    const toastHtml = toast
+      ? `<div class="toast toast-${toast.type}">${toast.message}</div>`
+      : ''
+
     const articleResult = generatedArticle
       ? `
         <div class="generated-result">
@@ -342,6 +365,8 @@ async function renderAdmin() {
 
     app.innerHTML = `
       <div class="container">
+        ${toastHtml}
+
         <button class="back-btn" onclick="navigate('')">← Back to articles</button>
         <div class="admin-header">
           <h1 class="page-title">🛠️ Admin Dashboard</h1>
@@ -352,7 +377,9 @@ async function renderAdmin() {
           <button class="fetch-btn" onclick="renderAdmin.__fetch()" ${fetching ? 'disabled' : ''}>
             ${fetching ? '⏳ Fetching…' : '📥 Fetch Latest PH Trends'}
           </button>
-          ${fetching ? '<span class="fetch-status">Fetching from Google Trends PH…</span>' : trends.length ? `<span class="fetch-status">${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded</span>` : ''}
+          <span class="fetch-status">
+            ${fetching ? '⏳ Fetching from Google Trends PH…' : `${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded`}
+          </span>
         </div>
 
         ${articleResult}
@@ -366,13 +393,31 @@ async function renderAdmin() {
 
   // Attach handlers to the renderAdmin function so inline onclick can call them
   renderAdmin.__handleGenerate = handleGenerate
-  renderAdmin.__fetch = loadTrends
+  renderAdmin.__fetch = fetchTrends
   renderAdmin.__clearResult = () => {
     generatedArticle = null
     render()
   }
 
-  await loadTrends()
+  // Step 1: Show trends from DB immediately (fast!)
+  render()
+  await loadFromDB()
+  // Step 2: Silently fetch from Google Trends in the background
+  fetchFromGoogleTrends().then(result => {
+    const count = result?.trends?.length ?? 0
+    if (count > 0) {
+      showToast(`✅ ${count} new trend${count !== 1 ? 's' : ''} fetched from Google Trends PH!`, 'success')
+      return searchTrendsDB('')
+    }
+    return null
+  }).then(freshTrends => {
+    if (freshTrends) {
+      trends = freshTrends
+      render()
+    }
+  }).catch(() => {
+    // Background fetch failed silently — data from DB already shown
+  })
 }
 
 // ── Render: Article Detail ────────────────────────
