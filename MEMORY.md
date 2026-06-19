@@ -145,6 +145,62 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 
 ---
 
+## Key Fixes: Edge Function DB Mismatch
+
+### The Problem
+
+The `fetch-trends` Edge Function was written against a **migration schema** (`slug`, `impact_rating`, `search_volume`, `status: 'active'`) that didn't match the **live Supabase DB** columns. The live trends table has:
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | UUID | PK, auto-generated |
+| `title` | TEXT | Trend title from RSS |
+| `summary` | TEXT | Description from RSS |
+| `category` | TEXT | Auto-categorized (Sports, Politics, etc.) |
+| `impact_score` | INTEGER | 0–100, derived from `ht:approx_traffic` |
+| `source_links` | JSONB | Array of `{url, name}` objects from RSS news items |
+| `status` | TEXT | **Must be `'published'`** (check constraint, not `'active'`) |
+| `created_at` | TIMESTAMPTZ | Auto |
+| `updated_at` | TIMESTAMPTZ | Auto |
+
+**Missing from live DB** (present in migration): `slug` ❌, `impact_rating` ❌, `search_volume` ❌, `published_at` ❌
+
+### The Fix (2026-06-19)
+
+The Edge Function was rewritten to:
+- Match actual live DB columns: `title`, `summary`, `category`, `impact_score`, `source_links`, `status: 'published'`
+- Use `title` for duplicate detection (exact match via `.eq()`)
+- Parse `ht:approx_traffic` from RSS → convert to `impact_score` (0–100 scale)
+- Parse `ht:news_item` tags → store as `source_links` array (no separate `trend_sources` table)
+- Added debug logging to diagnose insert failures
+- Deployed via `supabase functions deploy fetch-trends --project-ref nvxykufajzppjtkmbtte`
+
+---
+
+## Admin Dashboard (Frontend)
+
+**URL:** `https://mack0y.github.io/TrendwirePhilippines/#/admin` (no public link — private)
+
+### Features
+- **📥 Fetch Latest PH Trends** button — Calls `fetch-trends` Edge Function, shows toast notification with count
+- **Impact score badges** — Trends display 🔥 (≥70), 📈 (≥40), or 📊 (<40) badge with score
+- **Sort by highest score** — Trends ordered by `impact_score DESC`, then `created_at DESC`
+- **Instant load** — Trends shown immediately from DB, then background-fetches from Google Trends
+- **✏️ Generate Article** — Each trend has a button that calls `generate-article` Edge Function
+- **Article result** — Green success box with title, word count, tags, category after generation
+- **Toast notifications** — Fixed-position bar at top, auto-dismisses after 4s (green=success, blue=info, red=error)
+
+### Files Edited
+- `app.js` — Added `fetchFromGoogleTrends()`, `searchTrendsDB()`, `renderAdmin()` with full admin dashboard | `showToast()` for notifications
+- `style.css` — Added `.admin-toolbar`, `.fetch-btn`, `.toast`, `.impact-badge` styles
+- `index.html` — Cache-bust `?v=N` increment on each deploy
+
+### Cache-Busting
+- `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
+- Bump `N` on each deploy: v2 → v3 → v4 → v5 → v6
+
+---
+
 ## Known Issues & Gotchas
 
 ### Resolved
@@ -156,6 +212,8 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 - ✅ **Draft re-publishing duplicates** — `publish-article.py` now moves published drafts into `drafts/published/`, so `--latest` skips them; `--latest` with no unpublished drafts exits cleanly instead of erroring
 - ✅ **`test_pipeline.py` false success** — Publish step now sends an ISO timestamp (not literal `now()`), uses `Prefer: return=representation`, and verifies the returned row's `status === 'published'`
 - ✅ **Category naming mismatch** — Sample draft normalized from `Sports/Entertainment` to `Sports` (matches `fetch-trends` output and `generate-article` prompt branching)
+- ✅ **Edge Function DB mismatch** — `fetch-trends` was using `slug`, `impact_rating`, `search_volume`, `status: 'active'` which don't exist in live DB. Fixed to use actual columns (`impact_score`, `source_links`, `status: 'published'`)
+- ✅ **Impact score falsy bug** — `t.impact_score ? ... : ''` skipped score 0. Fixed to `t.impact_score != null`
 
 ### Watch Out For
 - **Draft re-publishing** — Fixed: published drafts are auto-archived to `drafts/published/`. (Old behavior re-published the latest draft on every push with a timestamped slug.) If you ever want to re-publish, restore a draft from `drafts/published/` into `drafts/`.
@@ -163,6 +221,7 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 - **Frontend cache** — The article list is cached in-memory on first load. New articles won't appear until the user refreshes the page.
 - **GitHub Pages 404 on fresh deploy** — Can take 2–5 minutes for Pages to deploy after enabling or pushing changes.
 - **RLS for editors** — The "Admins manage articles" policy requires a matching `profiles` entry. Editors/admins must sign up through Supabase Auth first.
+- **CDN cache on frontend** — After pushing JS changes, increment `?v=N` in `index.html` to force browser cache bust. GitHub Pages CDN can take 1–5 minutes to propagate.
 
 ---
 
