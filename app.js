@@ -146,7 +146,7 @@ async function fetchTrends(query) {
 
   let q = sb
     .from('trends')
-    .select('id, title, slug, summary, category, impact_rating, status, created_at')
+    .select('id, title, summary, category, impact_rating, status, created_at')
     .order('created_at', { ascending: false })
     .limit(50)
 
