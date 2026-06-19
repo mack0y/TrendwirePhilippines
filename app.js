@@ -10,10 +10,10 @@ let currentRoute = 'list'
 let currentSlug = null
 
 // ── Init Supabase ─────────────────────────────────
-let supabase
+let sb
 try {
   const { createClient } = window.supabase
-  supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     db: { schema: 'public' },
   })
 } catch (e) {
@@ -46,9 +46,9 @@ function navigate(path) {
 
 // ── API ───────────────────────────────────────────
 async function fetchArticles() {
-  if (!supabase) throw new Error('Supabase not initialized')
+  if (!sb) throw new Error('Supabase not initialized')
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('articles')
     .select('id, title, slug, summary, category, tags, published_at, created_at')
     .eq('status', 'published')
@@ -60,9 +60,9 @@ async function fetchArticles() {
 }
 
 async function fetchArticleBySlug(slug) {
-  if (!supabase) throw new Error('Supabase not initialized')
+  if (!sb) throw new Error('Supabase not initialized')
 
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from('articles')
     .select('*')
     .eq('slug', slug)
@@ -94,6 +94,46 @@ function readingTime(content) {
   const wpm = 200
   const words = content.trim().split(/\s+/).length
   return Math.max(1, Math.ceil(words / wpm))
+}
+
+// ── Share Helpers ────────────────────────────────
+const COPY_LINK_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M7.5 3.375c0-1.036.84-1.875 1.875-1.875h.375a3.75 3.75 0 013.75 3.75v1.875C13.5 8.16 12.66 9 11.625 9h-.375a3.75 3.75 0 01-3.75-3.75V3.375zm-4.5 0A2.625 2.625 0 015.625.75h.375a3.75 3.75 0 013.75 3.75v1.875c0 1.036-.84 1.875-1.875 1.875h-.375A3.75 3.75 0 013 5.625V3.375zM7.5 11.625c0-1.036.84-1.875 1.875-1.875h.375a3.75 3.75 0 013.75 3.75v1.875c0 1.036-.84 1.875-1.875 1.875h-.375a3.75 3.75 0 01-3.75-3.75V11.625z"/></svg>`
+const COPY_CHECK_SVG = `<svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>`
+
+function showCopiedFeedback(btn) {
+  btn.innerHTML = COPY_CHECK_SVG
+  btn.classList.add('copied')
+  setTimeout(() => {
+    btn.innerHTML = COPY_LINK_SVG
+    btn.classList.remove('copied')
+  }, 2000)
+}
+
+function copyArticleLink() {
+  const url = window.location.href
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      const btn = document.querySelector('.share-copy')
+      if (btn) showCopiedFeedback(btn)
+    }).catch(() => {
+      fallbackCopy(url)
+    })
+  } else {
+    fallbackCopy(url)
+  }
+}
+
+function fallbackCopy(text) {
+  const ta = document.createElement('textarea')
+  ta.value = text
+  ta.style.position = 'fixed'
+  ta.style.opacity = '0'
+  document.body.appendChild(ta)
+  ta.select()
+  document.execCommand('copy')
+  document.body.removeChild(ta)
+  const btn = document.querySelector('.share-copy')
+  if (btn) showCopiedFeedback(btn)
 }
 
 // ── Render: Loading ───────────────────────────────
@@ -197,6 +237,9 @@ async function renderArticle(slug) {
     const content = article.content || ''
     const paragraphs = content.split('\n\n').filter(p => p.trim())
 
+    const pageUrl = encodeURIComponent(window.location.href)
+    const shareText = encodeURIComponent(`${article.title} — TrendWire Philippines`)
+
     app.innerHTML = `
       <div class="container">
         <div class="article-detail">
@@ -221,6 +264,27 @@ async function renderArticle(slug) {
           <div class="article-content">
             ${article.summary ? `<div class="summary-box">${article.summary}</div>` : ''}
             ${paragraphs.map(p => `<p>${p.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`).join('')}
+          </div>
+
+          <div class="share-bar">
+            <span class="share-label">Share this article</span>
+            <div class="share-buttons">
+              <a class="share-btn share-twitter"
+                 href="https://twitter.com/intent/tweet?text=${shareText}&url=${pageUrl}"
+                 target="_blank" rel="noopener noreferrer"
+                 title="Share on Twitter/X">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+              </a>
+              <a class="share-btn share-facebook"
+                 href="https://www.facebook.com/sharer/sharer.php?u=${pageUrl}"
+                 target="_blank" rel="noopener noreferrer"
+                 title="Share on Facebook">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>
+              </a>
+              <button class="share-btn share-copy" onclick="copyArticleLink()" title="Copy link">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M7.5 3.375c0-1.036.84-1.875 1.875-1.875h.375a3.75 3.75 0 013.75 3.75v1.875C13.5 8.16 12.66 9 11.625 9h-.375a3.75 3.75 0 01-3.75-3.75V3.375zm-4.5 0A2.625 2.625 0 015.625.75h.375a3.75 3.75 0 013.75 3.75v1.875c0 1.036-.84 1.875-1.875 1.875h-.375A3.75 3.75 0 013 5.625V3.375zM7.5 11.625c0-1.036.84-1.875 1.875-1.875h.375a3.75 3.75 0 013.75 3.75v1.875c0 1.036-.84 1.875-1.875 1.875h-.375a3.75 3.75 0 01-3.75-3.75V11.625z"/></svg>
+              </button>
+            </div>
           </div>
 
           <div class="article-footer">
