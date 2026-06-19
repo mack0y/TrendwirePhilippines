@@ -31,6 +31,10 @@ function handleRoute() {
     currentRoute = 'article'
     currentSlug = hash.replace('article/', '')
     renderArticle(currentSlug)
+  } else if (hash === 'admin') {
+    currentRoute = 'admin'
+    currentSlug = null
+    renderAdmin()
   } else {
     currentRoute = 'list'
     currentSlug = null
@@ -136,6 +140,36 @@ function fallbackCopy(text) {
   if (btn) showCopiedFeedback(btn)
 }
 
+// ── Admin / Trend Search ─────────────────────────
+async function fetchTrends(query) {
+  if (!sb) throw new Error('Supabase not initialized')
+
+  let q = sb
+    .from('trends')
+    .select('id, title, slug, summary, category, impact_rating, status, created_at')
+    .order('created_at', { ascending: false })
+    .limit(50)
+
+  if (query && query.trim()) {
+    q = q.or(`title.ilike.%${query}%,summary.ilike.%${query}%`)
+  }
+
+  const { data, error } = await q
+  if (error) throw error
+  return data || []
+}
+
+async function generateArticleFromTrend(trendId) {
+  if (!sb) throw new Error('Supabase not initialized')
+
+  const { data, error } = await sb.functions.invoke('generate-article', {
+    body: { trend_id: trendId },
+  })
+
+  if (error) throw error
+  return data
+}
+
 // ── Render: Loading ───────────────────────────────
 function renderLoading() {
   const app = document.getElementById('app')
@@ -210,6 +244,121 @@ async function renderList() {
     console.error('Failed to load articles:', e)
     renderError(e.message)
   }
+}
+
+// ── Render: Admin Dashboard ───────────────────────
+async function renderAdmin() {
+  const app = document.getElementById('app')
+  let trends = []
+  let generating = null
+  let generatedArticle = null
+  let searchQuery = ''
+
+  async function loadTrends(query) {
+    searchQuery = query
+    try {
+      trends = await fetchTrends(query)
+      render()
+    } catch (e) {
+      console.error('Failed to load trends:', e)
+      renderError(e.message)
+    }
+  }
+
+  async function handleGenerate(trendId) {
+    generating = trendId
+    render()
+    try {
+      const result = await generateArticleFromTrend(trendId)
+      generatedArticle = result.article
+      generating = null
+      render()
+    } catch (e) {
+      generating = null
+      generatedArticle = null
+      render()
+      alert('Failed to generate: ' + e.message)
+    }
+  }
+
+  function render() {
+    const trendCards = trends.length
+      ? trends.map(t => `
+        <div class="trend-card" data-category="${t.category || 'General'}">
+          <div class="trend-info">
+            <div class="trend-top">
+              <span class="category-badge">${t.category || 'General'}</span>
+              ${t.impact_rating ? `<span class="impact-badge impact-${(t.impact_rating||'').toLowerCase()}">${t.impact_rating}</span>` : ''}
+            </div>
+            <h3>${t.title}</h3>
+            ${t.summary ? `<p class="trend-summary">${t.summary}</p>` : ''}
+            <span class="trend-date">📅 ${formatDate(t.created_at)}</span>
+          </div>
+          <button class="generate-btn" onclick="renderAdmin.__handleGenerate('${t.id}')"
+                  ${generating === t.id ? 'disabled' : ''}
+                  data-trend-id="${t.id}">
+            ${generating === t.id ? '⏳ Generating…' : '✏️ Generate Article'}
+          </button>
+        </div>
+      `).join('')
+      : `<div class="empty-state"><div class="icon">📊</div><h2>No trends found</h2><p>Try a different search term or fetch new trends using the Edge Function.</p></div>`
+
+    const articleResult = generatedArticle
+      ? `
+        <div class="generated-result">
+          <div class="result-header">
+            <span class="result-icon">✅</span>
+            <span><strong>Article generated!</strong> Saved as draft</span>
+          </div>
+          <h3>${generatedArticle.title}</h3>
+          <p class="result-summary">${generatedArticle.summary || ''}</p>
+          <div class="result-meta">
+            <span>📖 ${(generatedArticle.content||'').split(/\s+/).length} words</span>
+            <span>🏷️ ${(generatedArticle.tags||[]).length} tags</span>
+            <span>📂 ${generatedArticle.category || 'General'}</span>
+          </div>
+          <div class="result-actions">
+            <button class="generate-btn" onclick="renderAdmin.__clearResult()">Continue searching</button>
+          </div>
+        </div>
+      ` : ''
+
+    app.innerHTML = `
+      <div class="container">
+        <button class="back-btn" onclick="navigate('')">← Back to articles</button>
+        <div class="admin-header">
+          <h1 class="page-title">🛠️ Admin — Trend Search</h1>
+          <p class="page-subtitle">Search trends and generate articles from them</p>
+        </div>
+
+        <div class="admin-search">
+          <input type="text" class="admin-search-input" id="adminSearchInput"
+                 placeholder="Search trends…" value="${searchQuery}"
+                 onkeydown="if(event.key==='Enter')renderAdmin.__doSearch()">
+          <button class="search-btn" onclick="renderAdmin.__doSearch()">🔍 Search</button>
+        </div>
+
+        ${articleResult}
+
+        <div class="trend-list">
+          ${trendCards}
+        </div>
+      </div>
+    `
+  }
+
+  // Attach handlers to the renderAdmin function so inline onclick can call them
+  renderAdmin.__handleGenerate = handleGenerate
+  renderAdmin.__doSearch = () => {
+    const input = document.getElementById('adminSearchInput')
+    loadTrends(input ? input.value.trim() : '')
+  }
+  renderAdmin.__clearResult = () => {
+    generatedArticle = null
+    render()
+  }
+
+  await loadTrends('')
 }
 
 // ── Render: Article Detail ────────────────────────
