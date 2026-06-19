@@ -270,9 +270,10 @@ async function renderAdmin() {
       trends = await searchTrendsDB('')
       fetching = false
       render()
-      if (trends.length && count === 0) {
-        // Show subtle toast-like feedback
-        console.log('✅ Trends up to date — no new ones from Google')
+      const status = document.querySelector('.fetch-status')
+      if (status) {
+        status.textContent = count > 0 ? `✅ ${count} new trend${count !== 1 ? 's' : ''} fetched!` : '✅ Trends are up to date'
+        setTimeout(() => { if (document.contains(status)) status.textContent = `${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded` }, 3000)
       }
     } catch (e) {
       console.error('Google Trends fetch failed, loading DB:', e)
