@@ -325,7 +325,7 @@ async function renderAdmin() {
           <div class="trend-info">
             <div class="trend-top">
               <span class="category-badge">${t.category || 'General'}</span>
-              ${t.impact_score ? `<span class="impact-badge impact-${t.impact_score >= 70 ? 'high' : t.impact_score >= 40 ? 'medium' : 'low'}">${t.impact_score >= 70 ? '🔥' : t.impact_score >= 40 ? '📈' : '📊'} ${t.impact_score}</span>` : ''}
+              ${t.impact_score != null ? `<span class="impact-badge impact-${t.impact_score >= 70 ? 'high' : t.impact_score >= 40 ? 'medium' : 'low'}">${t.impact_score >= 70 ? '🔥' : t.impact_score >= 40 ? '📈' : '📊'} ${t.impact_score}</span>` : ''}
             </div>
             <h3>${t.title}</h3>
             ${t.summary ? `<p class="trend-summary">${t.summary}</p>` : ''}
