@@ -154,6 +154,7 @@ async function searchTrendsDB(query) {
   let q = sb
     .from('trends')
     .select('id, title, summary, category, impact_score, status, created_at')
+    .order('impact_score', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(50)
 
