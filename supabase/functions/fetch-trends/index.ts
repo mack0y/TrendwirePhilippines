@@ -6,18 +6,23 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-function createSlug(title: string): string {
-  return title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80)
-}
-
 function categorize(title: string) {
   const t = title.toLowerCase()
-  if (/earthquake|flood|typhoon|disaster|tsunami/.test(t)) return { category: 'Disaster', impact: 'Critical' }
-  if (/senate|congress|president|election|impeach/.test(t)) return { category: 'Politics', impact: 'High' }
-  if (/nba|game|match|tournament|championship/.test(t)) return { category: 'Sports', impact: 'High' }
-  if (/price|inflation|economy|peso/.test(t)) return { category: 'Economy', impact: 'Medium' }
-  if (/health|covid|hospital|disease/.test(t)) return { category: 'Health', impact: 'Medium' }
-  return { category: 'General', impact: 'Medium' }
+  if (/earthquake|flood|typhoon|disaster|tsunami/.test(t)) return 'Disaster'
+  if (/senate|congress|president|election|impeach/.test(t)) return 'Politics'
+  if (/nba|game|match|tournament|championship/.test(t)) return 'Sports'
+  if (/price|inflation|economy|peso/.test(t)) return 'Economy'
+  if (/health|covid|hospital|disease/.test(t)) return 'Health'
+  return 'General'
+}
+
+function parseTraffic(traffic: string): number {
+  // "500+" → 500, "10K+" → 10000, "1M+" → 1000000
+  const cleaned = traffic.replace(/[+,]/g, '').trim()
+  if (cleaned.endsWith('K')) return parseInt(cleaned) * 1000
+  if (cleaned.endsWith('M')) return parseInt(cleaned) * 1000000
+  const num = parseInt(cleaned)
+  return isNaN(num) ? 0 : num
 }
 
 serve(async (req) => {
@@ -44,13 +49,19 @@ serve(async (req) => {
       const link = /<link>(.*?)<\/link>/.exec(xml)?.[1] || ''
       const desc = /<description>(.*?)<\/description>/.exec(xml)?.[1] || ''
       const date = /<pubDate>(.*?)<\/pubDate>/.exec(xml)?.[1] || ''
-      const { category, impact } = categorize(title)
-      const slug = createSlug(title)
+      const trafficRaw = /<ht:approx_traffic>(.*?)<\/ht:approx_traffic>/.exec(xml)?.[1] || ''
+      const searchVolume = parseTraffic(trafficRaw)
+      const category = categorize(title)
 
-      const { data: existing } = await sb.from('trends').select('id').eq('slug', slug).single()
+      // Check for duplicate by title (slug column doesn't exist in live DB)
+      const { data: existing } = await sb.from('trends').select('id').ilike('title', title).maybeSingle()
       if (!existing) {
-        const { data: saved } = await sb.from('trends').insert({
-          title, slug, summary: desc, category, impact_rating: impact, status: 'active'
+        const { data: saved, error: insertErr } = await sb.from('trends').insert({
+          title,
+          summary: desc,
+          category,
+          search_volume: searchVolume,
+          status: 'active',
         }).select().single()
 
         if (saved) {
@@ -60,6 +71,8 @@ serve(async (req) => {
             published_at: date ? new Date(date).toISOString() : new Date().toISOString(),
           })
           trends.push(saved)
+        } else if (insertErr) {
+          console.error('Insert failed:', insertErr.message)
         }
       }
     }
@@ -67,6 +80,7 @@ serve(async (req) => {
     return new Response(JSON.stringify({ message: `Fetched ${trends.length} new trends`, trends }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (e) {
+    console.error('fetch-trends error:', e.message)
     return new Response(JSON.stringify({ error: e.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
   }
