@@ -396,12 +396,12 @@ async function renderAdmin() {
 
     // Validate content before publishing
     const words = (editorDraft.content || '').trim().split(/\s+/).filter(Boolean).length
-    if (words < 400) {
-      showToast(`⚠️ Content too short (${words} words). Minimum 400 required.`, 'error')
+    if (words < 300) {
+      showToast(`⚠️ Content too short (${words} words). Aim for at least 300 words.`, 'error')
       return
     }
-    if (words > 700) {
-      showToast(`⚠️ Content too long (${words} words). Maximum 700 recommended.`, 'error')
+    if (words > 900) {
+      showToast(`⚠️ Content too long (${words} words). Consider trimming to ~700 words.`, 'error')
       return
     }
 
@@ -561,7 +561,7 @@ async function renderAdmin() {
       if (wc && field === 'content') {
         const words = value.trim().split(/\s+/).filter(Boolean).length
         wc.textContent = `${words} words`
-        wc.style.color = (words >= 400 && words <= 700) ? '#2e7d32' : '#c62828'
+        wc.style.color = (words >= 300 && words <= 700) ? '#2e7d32' : '#c62828'
       }
     }
   }
@@ -639,7 +639,7 @@ async function renderAdmin() {
     if (hasEditor) {
       const d = editorDraft
       const contentWords = (d.content || '').trim().split(/\s+/).filter(Boolean).length
-      const contentColor = (contentWords >= 400 && contentWords <= 700) ? '#2e7d32' : '#c62828'
+      const contentColor = (contentWords >= 300 && contentWords <= 700) ? '#2e7d32' : '#c62828'
 
       const tagsList = (d.tags || '').split(',').map(t => t.trim()).filter(Boolean)
 
@@ -680,10 +680,11 @@ async function renderAdmin() {
                 <span class="word-counter" style="color:${contentColor}">${contentWords} words</span>
               </label>
               <textarea class="editor-textarea editor-textarea-lg"
-                        placeholder="Article body in markdown..."
+                        placeholder="Write your article here... Use **bold** for emphasis"
                         oninput="renderAdmin.__updateField('content', this.value, this)">${escHtml(d.content || '')}</textarea>
               <div class="editor-hint">
-                ${contentWords < 400 ? '⚠️ Minimum 400 words required' : contentWords > 700 ? '⚠️ Maximum 700 words recommended' : '✅ Target word count met'}
+                ${contentWords < 300 ? `📝 ${contentWords} words — aim for 300+` : contentWords > 700 ? `📝 ${contentWords} words — consider trimming to ~700` : `✅ ${contentWords} words — good length`}
+                <span style="margin-left:12px;color:var(--text-muted);font-weight:400">**text** → bold</span>
               </div>
             </div>
 

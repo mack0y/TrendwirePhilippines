@@ -71,7 +71,7 @@ ${structure}
 
 ${paragraphRule}
 
-WRITING: Conversational Filipino English. Short paragraphs (2-4 sentences). Bold key points with **bold**. 400-700 words. Never sound like a textbook. Every paragraph hooks the next.
+WRITING: Conversational Filipino English. Short paragraphs (2-4 sentences). Bold key points with **bold**. 300-700 words. Never sound like a textbook. Every paragraph hooks the next.
 
 Also generate an image_prompt (30-80 words, DALL-E/Midjourney ready, NO text in image, matches tone).
 
