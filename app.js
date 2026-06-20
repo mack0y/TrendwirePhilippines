@@ -561,7 +561,7 @@ async function renderAdmin() {
       if (wc && field === 'content') {
         const words = value.trim().split(/\s+/).filter(Boolean).length
         wc.textContent = `${words} words`
-        wc.style.color = (words >= 300 && words <= 700) ? '#2e7d32' : '#c62828'
+        wc.style.color = (words >= 300 && words <= 900) ? '#2e7d32' : '#c62828'
       }
     }
   }
@@ -639,7 +639,7 @@ async function renderAdmin() {
     if (hasEditor) {
       const d = editorDraft
       const contentWords = (d.content || '').trim().split(/\s+/).filter(Boolean).length
-      const contentColor = (contentWords >= 300 && contentWords <= 700) ? '#2e7d32' : '#c62828'
+      const contentColor = (contentWords >= 300 && contentWords <= 900) ? '#2e7d32' : '#c62828'
 
       const tagsList = (d.tags || '').split(',').map(t => t.trim()).filter(Boolean)
 
