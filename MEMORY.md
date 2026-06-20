@@ -182,12 +182,14 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 - Supported models: `openrouter/owl-alpha` (default), `deepseek/deepseek-v4-flash`
 
 ### `rapid-processor` (admin CRUD)
-Consolidated admin Edge Function handling 4 actions:
+Consolidated admin Edge Function handling 5 actions:
 | Action | Purpose |
 |--------|---------|
 | `get-article` | Fetch any article by ID (draft or published) |
 | `update-article` | Save edits to title, summary, content, tags, category, SEO, image fields |
 | `publish-article` | Flip status to published + set `published_at` |
+| `delete-article` | Delete single article + its image from storage |
+| `delete-articles` | Bulk delete multiple articles by IDs + their images |
 | `upload-image` | Accept base64 → store in `article-images` bucket → return public URL + update article |
 
 ---
@@ -232,6 +234,15 @@ When the editor is open, the admin splits into two columns:
 - **📢 Publish** — Validates content (300–900 words) + photo required, then saves + publishes
 - **✕ Close** — Closes the editor without saving
 
+### Article Management Section
+Below the trends list, the admin dashboard now shows **Published Articles** and **Drafts** grouped with:
+- ✅ **Checkboxes** — Select individual articles for bulk operations
+- ✅ **Select All** — Checkbox in the Published section header to toggle all
+- **🗑️ Delete (single)** — Per-article delete button with confirmation
+- **🗑️ Delete Selected** — Orange bulk action bar appears when items are selected
+- **✕ Clear** — Clears the current selection
+- **📅 Date + Category badges** — Quick metadata for each article
+
 ### Content Validation (frontend)
 - Title: max 65 characters (enforced by maxlength + visual counter)
 - Content: 300–900 words (green indicator, blocks publish if <300 or >900)
@@ -261,6 +272,8 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **`**text** → bold` hint** — Added note below editor content field explaining markdown syntax
 - **Prompt updated** — LLM prompt word count changed from 400–700 to 300–700, added explicit formatting rules (use `\n\n`, bold sparingly, no lists)
 - **Default model** — Changed from `openrouter/owl-alpha` to `openrouter/free`
+- **Delete article** — Added `delete-article` action to Edge Function + single delete button per article
+- **Bulk delete** — Added `delete-articles` action (accepts `ids[]`), checkboxes, Select All, Delete Selected bulk bar
 
 ---
 
@@ -275,6 +288,8 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v6 | Admin dashboard |
 | v7 | Split-pane editor, Pollinations AI, image upload |
 | v8 | Model selector |
+| v9 | Delete article (single) + article management section |
+| v10 | Bulk delete with checkboxes + Select All |
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy
