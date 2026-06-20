@@ -286,7 +286,7 @@ async function renderAdmin() {
   let imagePreviewUrl = null
   let uploadedImageUrl = null
 
-  let selectedModel = 'openrouter/owl-alpha'
+  let selectedModel = 'openrouter/free'
 
   const MODELS = [
     { id: 'openrouter/free', label: 'OpenRouter Free (auto)' },
