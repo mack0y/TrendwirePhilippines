@@ -77,6 +77,18 @@ async function fetchArticleBySlug(slug) {
   return data
 }
 
+// ── Admin API ─────────────────────────────────────
+
+/** Call the admin-operations Edge Function with an action and payload. */
+async function adminOperation(action, payload = {}) {
+  if (!sb) throw new Error('Supabase not initialized')
+  const { data, error } = await sb.functions.invoke('admin-operations', {
+    body: { action, ...payload },
+  })
+  if (error) throw error
+  return data
+}
+
 // ── Format Helpers ────────────────────────────────
 function formatDate(dateStr) {
   if (!dateStr) return ''
@@ -259,9 +271,19 @@ async function renderAdmin() {
   const app = document.getElementById('app')
   let trends = []
   let generating = null
-  let generatedArticle = null
   let fetching = false
   let toast = null
+
+  // Editor state
+  let editingArticle = null
+  let editorDraft = null
+  let saving = false
+  let publishing = false
+  let imageGenerating = false
+  let imagePreviewUrl = null
+  let uploadedImageUrl = null
+
+  const CATEGORIES = ['General', 'Sports', 'Politics', 'Disaster', 'Economy', 'Health', 'Technology', 'Entertainment']
 
   function showToast(message, type = 'info') {
     toast = { message, type }
@@ -269,7 +291,6 @@ async function renderAdmin() {
     setTimeout(() => { toast = null; const el = document.querySelector('.toast'); if (el) el.remove() }, 4000)
   }
 
-  // Load trends from DB immediately (fast), then fetch from Google in background
   async function loadFromDB() {
     try {
       trends = await searchTrendsDB('')
@@ -279,7 +300,6 @@ async function renderAdmin() {
     }
   }
 
-  // Explicit fetch button: fetch from Google Trends, then refresh from DB
   async function fetchTrends() {
     fetching = true
     render()
@@ -308,21 +328,278 @@ async function renderAdmin() {
     render()
     try {
       const result = await generateArticleFromTrend(trendId)
-      generatedArticle = result.article
+      const article = result.article
+      editingArticle = article
+      editorDraft = {
+        title: article.title || '',
+        summary: article.summary || '',
+        content: article.content || '',
+        category: article.category || 'General',
+        tags: (article.tags || []).join(', '),
+        seo_description: article.seo_description || '',
+        image_prompt: article.image_prompt || '',
+      }
+      imagePreviewUrl = article.image_url || null
+      uploadedImageUrl = article.image_url || null
       generating = null
       render()
     } catch (e) {
       generating = null
-      generatedArticle = null
+      showToast('❌ Failed to generate: ' + e.message, 'error')
       render()
-      alert('Failed to generate: ' + e.message)
     }
   }
 
+  async function handleSave() {
+    if (!editingArticle) return
+    saving = true
+    render()
+    try {
+      const tags = editorDraft.tags
+        ? editorDraft.tags.split(',').map(t => t.trim()).filter(Boolean)
+        : []
+      const result = await adminOperation('update-article', {
+        id: editingArticle.id,
+        title: editorDraft.title,
+        summary: editorDraft.summary,
+        content: editorDraft.content,
+        category: editorDraft.category,
+        tags,
+        seo_description: editorDraft.seo_description,
+        image_prompt: editorDraft.image_prompt,
+        image_url: uploadedImageUrl || editingArticle.image_url,
+      })
+      editingArticle = result
+      saving = false
+      showToast('💾 Draft saved!', 'success')
+      render()
+    } catch (e) {
+      saving = false
+      showToast('❌ Save failed: ' + e.message, 'error')
+      render()
+    }
+  }
+
+  async function handlePublish() {
+    if (!editingArticle) return
+
+    // Validate content before publishing
+    const words = (editorDraft.content || '').trim().split(/\s+/).filter(Boolean).length
+    if (words < 400) {
+      showToast(`⚠️ Content too short (${words} words). Minimum 400 required.`, 'error')
+      return
+    }
+    if (words > 700) {
+      showToast(`⚠️ Content too long (${words} words). Maximum 700 recommended.`, 'error')
+      return
+    }
+
+    publishing = true
+    render()
+    try {
+      // First save any pending edits
+      if (editorDraft) {
+        const tags = editorDraft.tags
+          ? editorDraft.tags.split(',').map(t => t.trim()).filter(Boolean)
+          : []
+        await adminOperation('update-article', {
+          id: editingArticle.id,
+          title: editorDraft.title,
+          summary: editorDraft.summary,
+          content: editorDraft.content,
+          category: editorDraft.category,
+          tags,
+          seo_description: editorDraft.seo_description,
+          image_prompt: editorDraft.image_prompt,
+          image_url: uploadedImageUrl || editingArticle.image_url,
+        })
+      }
+      // Then publish
+      const result = await adminOperation('publish-article', { id: editingArticle.id })
+      // Clear articles cache so list refreshes
+      articles = []
+      publishing = false
+      editingArticle = null
+      editorDraft = null
+      imagePreviewUrl = null
+      uploadedImageUrl = null
+      showToast(`✅ Published! "${result.title}" is now live`, 'success')
+      render()
+    } catch (e) {
+      publishing = false
+      showToast('❌ Publish failed: ' + e.message, 'error')
+      render()
+    }
+  }
+
+  function handleCloseEditor() {
+    editingArticle = null
+    editorDraft = null
+    imagePreviewUrl = null
+    uploadedImageUrl = null
+    render()
+  }
+
+  async function handleGenerateImage() {
+    const prompt = editorDraft?.image_prompt
+    if (!prompt) {
+      showToast('⚠️ Please enter an image prompt first', 'error')
+      return
+    }
+    imageGenerating = true
+    imagePreviewUrl = null
+    render()
+
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1280&height=720&nofeed=true`
+
+    // Preload the image
+    const img = new Image()
+    img.onload = () => {
+      imagePreviewUrl = url
+      imageGenerating = false
+      render()
+    }
+    img.onerror = () => {
+      imageGenerating = false
+      showToast('❌ Image generation failed — try again or upload manually', 'error')
+      render()
+    }
+    img.src = url
+  }
+
+  async function handleUseGeneratedImage() {
+    if (!imagePreviewUrl || !editingArticle) return
+
+    try {
+      // Fetch the generated image and convert to base64
+      const resp = await fetch(imagePreviewUrl)
+      if (!resp.ok) throw new Error('Failed to fetch generated image')
+      const blob = await resp.blob()
+
+      // Convert blob to base64
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = reject
+        reader.readAsDataURL(blob)
+      })
+
+      showToast('⏳ Uploading image…', 'info')
+
+      const result = await adminOperation('upload-image', {
+        article_id: editingArticle.id,
+        base64,
+      })
+
+      uploadedImageUrl = result.url
+      editingArticle.image_url = result.url
+      showToast('✅ Photo saved!', 'success')
+      render()
+    } catch (e) {
+      showToast('❌ Image upload failed: ' + e.message, 'error')
+    }
+  }
+
+  async function handleFileUpload(file) {
+    if (!editingArticle) return
+
+    // Validate size (2 MB)
+    if (file.size > 2 * 1024 * 1024) {
+      showToast('⚠️ Image too large — max 2 MB', 'error')
+      return
+    }
+
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(reader.result)
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      showToast('⏳ Uploading image…', 'info')
+
+      const result = await adminOperation('upload-image', {
+        article_id: editingArticle.id,
+        base64,
+      })
+
+      uploadedImageUrl = result.url
+      editingArticle.image_url = result.url
+      showToast('✅ Photo uploaded!', 'success')
+      render()
+    } catch (e) {
+      showToast('❌ Upload failed: ' + e.message, 'error')
+    }
+  }
+
+  // ── Editor field updaters (called from oninput, no re-render needed) ──
+
+  function updateField(field, value, el) {
+    editorDraft[field] = value
+
+    // Update char counter if present
+    const fieldEl = el.closest('.editor-field')
+    if (fieldEl) {
+      const counter = fieldEl.querySelector('.char-counter')
+      if (counter) {
+        const max = parseInt(counter.dataset.max || '999')
+        counter.textContent = `${value.length}/${max}`
+      }
+      const wc = fieldEl.querySelector('.word-counter')
+      if (wc && field === 'content') {
+        const words = value.trim().split(/\s+/).filter(Boolean).length
+        wc.textContent = `${words} words`
+        wc.style.color = (words >= 400 && words <= 700) ? '#2e7d32' : '#c62828'
+      }
+    }
+  }
+
+  function handleTagsInput(value, el) {
+    editorDraft.tags = value
+    const fieldEl = el.closest('.editor-field')
+    if (fieldEl) {
+      const preview = fieldEl.querySelector('.tag-preview')
+      if (preview) {
+        const tags = value.split(',').map(t => t.trim()).filter(Boolean)
+        preview.innerHTML = tags.length
+          ? tags.map(t => `<span class="editor-tag">${escHtml(t)}</span>`).join('')
+          : ''
+      }
+    }
+  }
+
+  // ── Render ────────────────────────────────────────
+
   function render() {
+    const hasEditor = editingArticle && editorDraft
+
+    // Toolbar & header (always visible)
+    const headerHtml = `
+      <button class="back-btn" onclick="navigate('')">← Back to articles</button>
+      <div class="admin-header">
+        <h1 class="page-title">🛠️ Admin Dashboard</h1>
+        <p class="page-subtitle">Fetch trending topics from Google Trends PH and generate articles</p>
+      </div>
+
+      <div class="admin-toolbar">
+        <button class="fetch-btn" onclick="renderAdmin.__fetch()" ${fetching ? 'disabled' : ''}>
+          ${fetching ? '⏳ Fetching…' : '📥 Fetch Latest PH Trends'}
+        </button>
+        <span class="fetch-status">
+          ${fetching ? '⏳ Fetching from Google Trends PH…' : `${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded`}
+        </span>
+      </div>
+    `
+
+    const toastHtml = toast
+      ? `<div class="toast toast-${toast.type}">${toast.message}</div>`
+      : ''
+
+    // Trend cards
     const trendCards = trends.length
       ? trends.map(t => `
-        <div class="trend-card" data-category="${t.category || 'General'}">
+        <div class="trend-card ${hasEditor ? 'trend-card-compact' : ''}" data-category="${t.category || 'General'}">
           <div class="trend-info">
             <div class="trend-top">
               <span class="category-badge">${t.category || 'General'}</span>
@@ -333,78 +610,235 @@ async function renderAdmin() {
             <span class="trend-date">📅 ${formatDate(t.created_at)}</span>
           </div>
           <button class="generate-btn" onclick="renderAdmin.__handleGenerate('${t.id}')"
-                  ${generating === t.id ? 'disabled' : ''}
-                  data-trend-id="${t.id}">
-            ${generating === t.id ? '⏳ Generating…' : '✏️ Generate Article'}
+                  ${generating === t.id ? 'disabled' : ''}>
+            ${generating === t.id ? '⏳ Generating…' : '✏️ Generate'}
           </button>
         </div>
       `).join('')
       : `<div class="empty-state"><div class="icon">📊</div><h2>No trends yet</h2><p>Click "Fetch Latest PH Trends" to pull trending topics from Google Trends Philippines.</p></div>`
 
-    const toastHtml = toast
-      ? `<div class="toast toast-${toast.type}">${toast.message}</div>`
-      : ''
+    // ── Editor section ──
+    let editorHtml = ''
+    if (hasEditor) {
+      const d = editorDraft
+      const contentWords = (d.content || '').trim().split(/\s+/).filter(Boolean).length
+      const contentColor = (contentWords >= 400 && contentWords <= 700) ? '#2e7d32' : '#c62828'
 
-    const articleResult = generatedArticle
-      ? `
-        <div class="generated-result">
-          <div class="result-header">
-            <span class="result-icon">✅</span>
-            <span><strong>Article generated!</strong> Saved as draft</span>
-          </div>
-          <h3>${generatedArticle.title}</h3>
-          <p class="result-summary">${generatedArticle.summary || ''}</p>
-          <div class="result-meta">
-            <span>📖 ${(generatedArticle.content||'').split(/\s+/).length} words</span>
-            <span>🏷️ ${(generatedArticle.tags||[]).length} tags</span>
-            <span>📂 ${generatedArticle.category || 'General'}</span>
-          </div>
-          <div class="result-actions">
-            <button class="generate-btn" onclick="renderAdmin.__clearResult()">Dismiss</button>
+      const tagsList = (d.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+
+      editorHtml = `
+        <div class="editor-pane">
+          <div class="editor-scroll">
+            <div class="editor-header">
+              <h2>✏️ Edit Article</h2>
+              <span class="editor-status-badge draft-badge">Draft</span>
+            </div>
+
+            <!-- Title -->
+            <div class="editor-field">
+              <label>
+                Title
+                <span class="char-counter" data-max="65">${(d.title||'').length}/65</span>
+              </label>
+              <input type="text" class="editor-input" value="${escHtml(d.title || '')}"
+                     maxlength="65" placeholder="Article headline"
+                     oninput="renderAdmin.__updateField('title', this.value, this)">
+            </div>
+
+            <!-- Summary -->
+            <div class="editor-field">
+              <label>
+                Summary
+                <span class="char-counter" data-max="160">${(d.summary||'').length}/160</span>
+              </label>
+              <textarea class="editor-textarea editor-textarea-sm" maxlength="160"
+                        placeholder="Brief summary of the article"
+                        oninput="renderAdmin.__updateField('summary', this.value, this)">${escHtml(d.summary || '')}</textarea>
+            </div>
+
+            <!-- Content -->
+            <div class="editor-field">
+              <label>
+                Content
+                <span class="word-counter" style="color:${contentColor}">${contentWords} words</span>
+              </label>
+              <textarea class="editor-textarea editor-textarea-lg"
+                        placeholder="Article body in markdown..."
+                        oninput="renderAdmin.__updateField('content', this.value, this)">${escHtml(d.content || '')}</textarea>
+              <div class="editor-hint">
+                ${contentWords < 400 ? '⚠️ Minimum 400 words required' : contentWords > 700 ? '⚠️ Maximum 700 words recommended' : '✅ Target word count met'}
+              </div>
+            </div>
+
+            <!-- Category -->
+            <div class="editor-field">
+              <label>Category</label>
+              <select class="editor-select" onchange="renderAdmin.__updateField('category', this.value, this)">
+                ${CATEGORIES.map(c => `<option value="${c}" ${d.category === c ? 'selected' : ''}>${c}</option>`).join('')}
+              </select>
+            </div>
+
+            <!-- Tags -->
+            <div class="editor-field">
+              <label>
+                Tags
+                <span class="char-counter">comma-separated</span>
+              </label>
+              <input type="text" class="editor-input" value="${escHtml(d.tags || '')}"
+                     placeholder="tag1, tag2, tag3, tag4"
+                     oninput="renderAdmin.__handleTags(this.value, this)">
+              <div class="tag-preview">
+                ${tagsList.map(t => `<span class="editor-tag">${t}</span>`).join('')}
+              </div>
+            </div>
+
+            <!-- SEO Description -->
+            <div class="editor-field">
+              <label>
+                SEO Description
+                <span class="char-counter" data-max="155">${(d.seo_description||'').length}/155</span>
+              </label>
+              <textarea class="editor-textarea editor-textarea-sm" maxlength="155"
+                        placeholder="Meta description for search engines"
+                        oninput="renderAdmin.__updateField('seo_description', this.value, this)">${escHtml(d.seo_description || '')}</textarea>
+            </div>
+
+            <!-- ── Photo Section ── -->
+            <div class="editor-section-divider">
+              <span>📸 Featured Photo</span>
+            </div>
+
+            <div class="editor-field">
+              <label>Image Prompt</label>
+              <textarea class="editor-textarea editor-textarea-sm" id="editor-image-prompt"
+                        placeholder="Describe the image you want to generate..."
+                        oninput="renderAdmin.__updateField('image_prompt', this.value, this)">${escHtml(d.image_prompt || '')}</textarea>
+              <div class="editor-image-actions">
+                <button class="gen-img-btn" onclick="renderAdmin.__generateImage()"
+                        ${imageGenerating ? 'disabled' : ''}>
+                  ${imageGenerating ? '⏳ Generating…' : '🎨 Generate with AI'}
+                </button>
+                <label class="gen-img-btn upload-btn">
+                  📁 Upload from Device
+                  <input type="file" accept="image/*" style="display:none"
+                         onchange="renderAdmin.__handleFileUpload(this.files[0]); this.value=''">
+                </label>
+              </div>
+            </div>
+
+            <!-- Image Preview -->
+            <div class="editor-image-preview">
+              ${imageGenerating ? `
+                <div class="image-preview-loading">
+                  <div class="spinner"></div>
+                  <p>Generating image with AI…</p>
+                </div>
+              ` : imagePreviewUrl && !uploadedImageUrl ? `
+                <div class="image-preview-box">
+                  <img src="${imagePreviewUrl}" alt="Generated preview" class="preview-img"
+                       onerror="this.closest('.image-preview-box').innerHTML='<p class=\\'preview-error\\'>⚠️ Failed to load generated image</p>'">
+                  <div class="preview-actions">
+                    <button class="gen-img-btn use-photo-btn" onclick="renderAdmin.__useGeneratedImage()">✅ Use This Photo</button>
+                    <button class="gen-img-btn secondary-btn" onclick="renderAdmin.__generateImage()">🔄 Regenerate</button>
+                  </div>
+                </div>
+              ` : uploadedImageUrl ? `
+                <div class="image-preview-box">
+                  <img src="${uploadedImageUrl}" alt="Uploaded photo" class="preview-img">
+                  <div class="preview-actions">
+                    <span class="photo-saved-badge">✅ Photo saved</span>
+                    <button class="gen-img-btn secondary-btn" onclick="renderAdmin.__removePhoto()">🗑️ Remove</button>
+                  </div>
+                </div>
+              ` : `
+                <div class="image-preview-empty">
+                  <span class="preview-placeholder">📷</span>
+                  <p>No photo yet — generate with AI or upload from your device</p>
+                  <p class="preview-note">Every article must have a photo</p>
+                </div>
+              `}
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="editor-actions">
+              <button class="editor-btn editor-btn-save" onclick="renderAdmin.__save()"
+                      ${saving ? 'disabled' : ''}>
+                ${saving ? '⏳ Saving…' : '💾 Save Draft'}
+              </button>
+              <button class="editor-btn editor-btn-publish" onclick="renderAdmin.__publish()"
+                      ${publishing || !uploadedImageUrl ? 'disabled' : ''}>
+                ${publishing ? '⏳ Publishing…' : '📢 Publish'}
+              </button>
+              <button class="editor-btn editor-btn-close" onclick="renderAdmin.__closeEditor()">
+                ✕ Close
+              </button>
+            </div>
+            ${!uploadedImageUrl ? `<p class="editor-note">⚠️ A photo is required before publishing</p>` : ''}
           </div>
         </div>
-      ` : ''
+      `
+    }
 
-    app.innerHTML = `
-      <div class="container">
+    // ── Assemble page ──
+
+    if (hasEditor) {
+      app.innerHTML = `
         ${toastHtml}
-
-        <button class="back-btn" onclick="navigate('')">← Back to articles</button>
-        <div class="admin-header">
-          <h1 class="page-title">🛠️ Admin Dashboard</h1>
-          <p class="page-subtitle">Fetch trending topics from Google Trends PH and generate articles</p>
+        <div class="container admin-split-layout">
+          <div class="admin-sidebar">
+            ${headerHtml}
+            <div class="trend-list">
+              ${trendCards}
+            </div>
+          </div>
+          ${editorHtml}
         </div>
-
-        <div class="admin-toolbar">
-          <button class="fetch-btn" onclick="renderAdmin.__fetch()" ${fetching ? 'disabled' : ''}>
-            ${fetching ? '⏳ Fetching…' : '📥 Fetch Latest PH Trends'}
-          </button>
-          <span class="fetch-status">
-            ${fetching ? '⏳ Fetching from Google Trends PH…' : `${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded`}
-          </span>
+      `
+      // Scroll editor to top
+      const editorScroll = document.querySelector('.editor-scroll')
+      if (editorScroll) editorScroll.scrollTop = 0
+    } else {
+      app.innerHTML = `
+        ${toastHtml}
+        <div class="container">
+          ${headerHtml}
+          <div class="trend-list">
+            ${trendCards}
+          </div>
         </div>
+      `
+    }
 
-        ${articleResult}
-
-        <div class="trend-list">
-          ${trendCards}
-        </div>
-      </div>
-    `
+    // Focus the title input after render if editor just opened
+    if (hasEditor) {
+      const titleInput = document.querySelector('.editor-input')
+      if (titleInput && !titleInput.dataset.focused) {
+        titleInput.dataset.focused = 'true'
+        // Don't steal focus aggressively
+      }
+    }
   }
 
-  // Attach handlers to the renderAdmin function so inline onclick can call them
+  // Attach handlers
   renderAdmin.__handleGenerate = handleGenerate
   renderAdmin.__fetch = fetchTrends
-  renderAdmin.__clearResult = () => {
-    generatedArticle = null
+  renderAdmin.__updateField = updateField
+  renderAdmin.__handleTags = handleTagsInput
+  renderAdmin.__save = handleSave
+  renderAdmin.__publish = handlePublish
+  renderAdmin.__closeEditor = handleCloseEditor
+  renderAdmin.__generateImage = handleGenerateImage
+  renderAdmin.__useGeneratedImage = handleUseGeneratedImage
+  renderAdmin.__handleFileUpload = handleFileUpload
+  renderAdmin.__removePhoto = () => {
+    uploadedImageUrl = null
+    imagePreviewUrl = null
+    editingArticle.image_url = null
     render()
   }
 
-  // Step 1: Load trends from DB immediately (fast!), no flash
+  // Load data
   await loadFromDB()
-  // Step 2: Silently fetch from Google Trends in background
-  // — abandoned if user clicks the fetch button (fetching becomes true)
   fetchFromGoogleTrends().then(result => {
     if (fetching || currentRoute !== 'admin') return null
     const count = result?.trends?.length ?? 0
@@ -419,9 +853,14 @@ async function renderAdmin() {
       trends = freshTrends
       render()
     }
-  }).catch(() => {
-    // Background fetch failed silently — data from DB already shown
-  })
+  }).catch(() => {})
+}
+
+// Simple HTML escape helper
+function escHtml(str) {
+  const d = document.createElement('div')
+  d.textContent = str
+  return d.innerHTML
 }
 
 // ── Render: Article Detail ────────────────────────
@@ -468,9 +907,11 @@ async function renderArticle(slug) {
           </div>
 
           <div class="featured-image">
-            ${article.image_prompt
-              ? '📸 ' + article.image_prompt.slice(0, 80) + '…'
-              : '📰 No image available'}
+            ${article.image_url
+              ? `<img src="${article.image_url}" alt="${article.title}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)">`
+              : article.image_prompt
+                ? '📸 ' + article.image_prompt.slice(0, 80) + '…'
+                : '📰 No image available'}
           </div>
 
           <div class="article-content">
