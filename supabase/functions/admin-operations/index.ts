@@ -55,7 +55,7 @@ serve(async (req) => {
         const { id } = payload
         if (!id) throw new Error('id required')
         // Delete the article's image from storage if it exists
-        const { data: article } = await sb.from('articles').select('id, image_url').eq('id', id).single()
+        const { data: article } = await sb.from('articles').select('id, image_url').eq('id', id).maybeSingle()
         if (article?.image_url) {
           const pathMatch = article.image_url.match(/\/article-images\/(.+)$/)
           if (pathMatch) {
@@ -63,8 +63,11 @@ serve(async (req) => {
               .catch(() => {}) // don't fail if image removal fails
           }
         }
-        const { error } = await sb.from('articles').delete().eq('id', id)
-        if (error) throw error
+        // Delete the article (or skip if already deleted)
+        if (article) {
+          const { error } = await sb.from('articles').delete().eq('id', id)
+          if (error) throw error
+        }
         return new Response(JSON.stringify({ success: true, id }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
