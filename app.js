@@ -179,11 +179,14 @@ async function searchTrendsDB(query) {
   return data || []
 }
 
-async function generateArticleFromTrend(trendId) {
+async function generateArticleFromTrend(trendId, model) {
   if (!sb) throw new Error('Supabase not initialized')
 
+  const body = { trend_id: trendId }
+  if (model) body.model = model
+
   const { data, error } = await sb.functions.invoke('generate-article', {
-    body: { trend_id: trendId },
+    body,
   })
 
   if (error) throw error
@@ -283,6 +286,13 @@ async function renderAdmin() {
   let imagePreviewUrl = null
   let uploadedImageUrl = null
 
+  let selectedModel = 'openrouter/owl-alpha'
+
+  const MODELS = [
+    { id: 'openrouter/owl-alpha', label: 'Owl Alpha' },
+    { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
+  ]
+
   const CATEGORIES = ['General', 'Sports', 'Politics', 'Disaster', 'Economy', 'Health', 'Technology', 'Entertainment']
 
   function showToast(message, type = 'info') {
@@ -327,7 +337,7 @@ async function renderAdmin() {
     generating = trendId
     render()
     try {
-      const result = await generateArticleFromTrend(trendId)
+      const result = await generateArticleFromTrend(trendId, selectedModel)
       const article = result.article
       editingArticle = article
       editorDraft = {
@@ -586,6 +596,12 @@ async function renderAdmin() {
         <button class="fetch-btn" onclick="renderAdmin.__fetch()" ${fetching ? 'disabled' : ''}>
           ${fetching ? '⏳ Fetching…' : '📥 Fetch Latest PH Trends'}
         </button>
+        <div class="model-selector">
+          <label class="model-label">🤖 Model</label>
+          <select class="model-select" onchange="renderAdmin.__setModel(this.value)">
+            ${MODELS.map(m => `<option value="${m.id}" ${selectedModel === m.id ? 'selected' : ''}>${m.label}</option>`).join('')}
+          </select>
+        </div>
         <span class="fetch-status">
           ${fetching ? '⏳ Fetching from Google Trends PH…' : `${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded`}
         </span>
@@ -822,6 +838,10 @@ async function renderAdmin() {
   // Attach handlers
   renderAdmin.__handleGenerate = handleGenerate
   renderAdmin.__fetch = fetchTrends
+  renderAdmin.__setModel = (value) => {
+    selectedModel = value
+    render()
+  }
   renderAdmin.__updateField = updateField
   renderAdmin.__handleTags = handleTagsInput
   renderAdmin.__save = handleSave

@@ -601,6 +601,42 @@ body {
   color: var(--text-secondary);
 }
 
+/* ===== Model Selector ===== */
+.model-selector {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.model-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.model-select {
+  padding: 8px 12px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: border-color var(--transition);
+}
+
+.model-select:focus {
+  outline: none;
+  border-color: var(--blue);
+}
+
+.model-select option {
+  font-weight: 500;
+}
+
 .trend-list {
   display: flex;
   flex-direction: column;

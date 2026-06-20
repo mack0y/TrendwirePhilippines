@@ -21,7 +21,7 @@ serve(async (req) => {
     if (!orKey) throw new Error('OPENROUTER_API_KEY not set')
 
     const sb = createClient(url, svcKey)
-    const { trend_id } = await req.json()
+    const { trend_id, model } = await req.json()
     if (!trend_id) throw new Error('trend_id required')
 
     const { data: trend } = await sb.from('trends').select('*').eq('id', trend_id).single()
@@ -76,7 +76,7 @@ Output JSON only:
         'X-Title': 'TrendWire Philippines',
       },
       body: JSON.stringify({
-        model: orModel, messages: [{ role: 'user', content: prompt }],
+        model: model || orModel, messages: [{ role: 'user', content: prompt }],
         temperature: 0.8, max_tokens: 3000, response_format: { type: 'json_object' },
       }),
     })
