@@ -897,6 +897,9 @@ function renderMarkdown(content) {
   // Convert **text** to <strong>text</strong>
   html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
 
+  // Safety: strip any remaining unmatched ** markers
+  html = html.replace(/\*{2,}/g, '')
+
   // Split by double newlines (paragraph breaks)
   const blocks = html.split('\n\n').filter(b => b.trim())
 
