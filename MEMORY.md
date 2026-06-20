@@ -214,7 +214,7 @@ When the editor is open, the admin splits into two columns:
 |-------|----------|
 | **Title** | Text input, live 65-char counter |
 | **Summary** | Textarea, live 160-char counter |
-| **Content** | Large textarea, live word count (400–700 range indicator) |
+| **Content** | Large textarea, live word count (300–900 range indicator), `**text** → bold` hint |
 | **Category** | Dropdown (General, Sports, Politics, Disaster, Economy, Health, Technology, Entertainment) |
 | **Tags** | Text input, comma-separated, live preview as pills |
 | **SEO Description** | Textarea, live 155-char counter |
@@ -229,12 +229,12 @@ When the editor is open, the admin splits into two columns:
 
 ### Action Buttons
 - **💾 Save Draft** — Saves all edits via `rapid-processor update-article`
-- **📢 Publish** — Validates content (400–700 words) + photo required, then saves + publishes
+- **📢 Publish** — Validates content (300–900 words) + photo required, then saves + publishes
 - **✕ Close** — Closes the editor without saving
 
 ### Content Validation (frontend)
 - Title: max 65 characters (enforced by maxlength + visual counter)
-- Content: 400–700 words (visual indicator + block on publish if out of range)
+- Content: 300–900 words (green indicator, blocks publish if <300 or >900)
 - Photo: required before publishing (publish button disabled)
 
 ---
@@ -249,9 +249,18 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - Added free AI image generation via Pollinations.ai
 - Created `rapid-processor` Edge Function for admin CRUD
 - Added Supabase Storage bucket `article-images` for photo storage
-- Added model selector (owl-alpha / deepseek-v4-flash)
+- Added model selector (owl-alpha / deepseek-v4-flash / openrouter/free)
 - Fixed tag XSS by using `escHtml()` in tag preview rendering
 - Added content length validation (400–700 words) before publishing
+
+### Post-Launch Fixes (2026-06-20)
+- **Pollinations cache-bust** — Added `_=${Date.now()}` to image URL so Regenerate produces a new image
+- **Word count relaxed** — Lowered minimum from 400→300, raised max from 700→900
+- **Color thresholds aligned** — Word counter green from 300–900 words (was 400–700)
+- **Markdown rendering** — Added `renderMarkdown()` function that converts `**text**` → `<strong>`, handles `\n\n` + `\n` line breaks, strips unmatched `**`
+- **`**text** → bold` hint** — Added note below editor content field explaining markdown syntax
+- **Prompt updated** — LLM prompt word count changed from 400–700 to 300–700, added explicit formatting rules (use `\n\n`, bold sparingly, no lists)
+- **Default model** — Changed from `openrouter/owl-alpha` to `openrouter/free`
 
 ---
 
