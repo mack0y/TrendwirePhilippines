@@ -289,6 +289,7 @@ async function renderAdmin() {
   let selectedModel = 'openrouter/owl-alpha'
 
   const MODELS = [
+    { id: 'openrouter/free', label: 'OpenRouter Free (auto)' },
     { id: 'openrouter/owl-alpha', label: 'Owl Alpha' },
     { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
   ]
