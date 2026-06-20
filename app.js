@@ -461,7 +461,7 @@ async function renderAdmin() {
     imagePreviewUrl = null
     render()
 
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1280&height=720&nofeed=true`
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1280&height=720&nofeed=true&_=${Date.now()}`
 
     // Preload the image
     const img = new Image()
