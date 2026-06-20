@@ -277,6 +277,11 @@ async function renderAdmin() {
   let fetching = false
   let toast = null
 
+  // Articles management
+  let allArticles = []
+  let loadingArticles = false
+  let deletingArticle = null
+
   // Editor state
   let editingArticle = null
   let editorDraft = null
@@ -295,6 +300,45 @@ async function renderAdmin() {
   ]
 
   const CATEGORIES = ['General', 'Sports', 'Politics', 'Disaster', 'Economy', 'Health', 'Technology', 'Entertainment']
+
+  async function loadArticles() {
+    if (!sb) return
+    loadingArticles = true
+    render()
+    try {
+      const { data, error } = await sb
+        .from('articles')
+        .select('id, title, slug, category, status, published_at, created_at, summary')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      if (error) throw error
+      allArticles = data || []
+      loadingArticles = false
+      render()
+    } catch (e) {
+      loadingArticles = false
+      showToast('❌ Failed to load articles: ' + e.message, 'error')
+      render()
+    }
+  }
+
+  async function handleDeleteArticle(articleId, articleTitle) {
+    if (!confirm(`Delete "${articleTitle}"? This cannot be undone.`)) return
+    deletingArticle = articleId
+    render()
+    try {
+      await adminOperation('delete-article', { id: articleId })
+      allArticles = allArticles.filter(a => a.id !== articleId)
+      articles = [] // Clear cached published articles
+      deletingArticle = null
+      showToast(`🗑️ "${articleTitle}" deleted`, 'success')
+      render()
+    } catch (e) {
+      deletingArticle = null
+      showToast('❌ Delete failed: ' + e.message, 'error')
+      render()
+    }
+  }
 
   function showToast(message, type = 'info') {
     toast = { message, type }
@@ -614,6 +658,55 @@ async function renderAdmin() {
       : ''
 
     // Trend cards
+    // ── Articles Management Section ──
+    let articlesHtml = ''
+    if (allArticles.length) {
+      const published = allArticles.filter(a => a.status === 'published')
+      const drafts = allArticles.filter(a => a.status === 'draft')
+
+      articlesHtml = `
+        <div class="admin-section-divider">📰 Published Articles (${published.length})</div>
+        ${published.length ? published.map(a => `
+          <div class="article-manage-card ${deletingArticle === a.id ? 'deleting' : ''}">
+            <div class="article-manage-info">
+              <a class="article-manage-title" href="#/article/${a.slug}" target="_blank">${escHtml(a.title)}</a>
+              <div class="article-manage-meta">
+                <span class="category-badge-sm ${a.category || 'General'}">${a.category || 'General'}</span>
+                <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
+              </div>
+            </div>
+            <button class="delete-btn" onclick="renderAdmin.__deleteArticle('${a.id}', '${escHtml(a.title).replace(/'/g, "\\'")}')"
+                    ${deletingArticle === a.id ? 'disabled' : ''}>
+              ${deletingArticle === a.id ? '⏳…' : '🗑️ Delete'}
+            </button>
+          </div>
+        `).join('') : `<p class="admin-empty-note">No published articles</p>`}
+
+        ${drafts.length ? `
+        <div class="admin-section-divider" style="margin-top:16px">📝 Drafts (${drafts.length})</div>
+        ${drafts.map(a => `
+          <div class="article-manage-card ${deletingArticle === a.id ? 'deleting' : ''}">
+            <div class="article-manage-info">
+              <span class="article-manage-title draft-title">${escHtml(a.title)}</span>
+              <div class="article-manage-meta">
+                <span class="category-badge-sm ${a.category || 'General'}">${a.category || 'General'}</span>
+                <span>📅 ${formatDate(a.created_at)}</span>
+              </div>
+            </div>
+            <button class="delete-btn" onclick="renderAdmin.__deleteArticle('${a.id}', '${escHtml(a.title).replace(/'/g, "\\'")}')"
+                    ${deletingArticle === a.id ? 'disabled' : ''}>
+              ${deletingArticle === a.id ? '⏳…' : '🗑️ Delete'}
+            </button>
+          </div>
+        `).join('')}
+        ` : ''}
+      `
+    } else if (loadingArticles) {
+      articlesHtml = `<p class="admin-empty-note">⏳ Loading articles…</p>`
+    } else {
+      articlesHtml = `<p class="admin-empty-note">No articles yet. Generate one from a trend above.</p>`
+    }
+
     const trendCards = trends.length
       ? trends.map(t => `
         <div class="trend-card ${hasEditor ? 'trend-card-compact' : ''}" data-category="${t.category || 'General'}">
@@ -808,6 +901,9 @@ async function renderAdmin() {
             <div class="trend-list">
               ${trendCards}
             </div>
+            <div class="article-manage-section">
+              ${articlesHtml}
+            </div>
           </div>
           ${editorHtml}
         </div>
@@ -822,6 +918,9 @@ async function renderAdmin() {
           ${headerHtml}
           <div class="trend-list">
             ${trendCards}
+          </div>
+          <div class="article-manage-section">
+            ${articlesHtml}
           </div>
         </div>
       `
@@ -852,6 +951,8 @@ async function renderAdmin() {
   renderAdmin.__generateImage = handleGenerateImage
   renderAdmin.__useGeneratedImage = handleUseGeneratedImage
   renderAdmin.__handleFileUpload = handleFileUpload
+  renderAdmin.__deleteArticle = handleDeleteArticle
+
   renderAdmin.__removePhoto = () => {
     uploadedImageUrl = null
     imagePreviewUrl = null
@@ -861,6 +962,7 @@ async function renderAdmin() {
 
   // Load data
   await loadFromDB()
+  loadArticles() // Load articles for management section
   fetchFromGoogleTrends().then(result => {
     if (fetching || currentRoute !== 'admin') return null
     const count = result?.trends?.length ?? 0

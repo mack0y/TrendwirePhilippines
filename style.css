@@ -1275,6 +1275,135 @@ body {
   text-align: center;
 }
 
+/* ===== Article Management Section (Admin) ===== */
+.article-manage-section {
+  margin-top: 24px;
+  padding-top: 8px;
+  border-top: 2px solid var(--border);
+}
+
+.admin-section-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--bg);
+}
+
+.article-manage-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  margin-bottom: 8px;
+  transition: all var(--transition);
+}
+
+.article-manage-card:hover {
+  border-color: #ccc;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.article-manage-card.deleting {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.article-manage-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.article-manage-title {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  text-decoration: none;
+  line-height: 1.4;
+  margin-bottom: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.article-manage-title:hover {
+  color: var(--blue);
+  text-decoration: underline;
+}
+
+.draft-title {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.article-manage-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.category-badge-sm {
+  display: inline-block;
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.category-badge-sm.General { background: #e8e8e8; }
+.category-badge-sm.Sports { background: #ffebee; color: #c62828; }
+.category-badge-sm.Politics { background: #e3f2fd; color: #0d47a1; }
+.category-badge-sm.Disaster { background: #fff3e0; color: #e65100; }
+.category-badge-sm.Economy { background: #e8f5e9; color: #1b5e20; }
+.category-badge-sm.Health { background: #e0f2f1; color: #004d40; }
+.category-badge-sm.Technology { background: #f3e5f5; color: #6a1b9a; }
+.category-badge-sm.Entertainment { background: #fce4ec; color: #880e4f; }
+
+.delete-btn {
+  flex-shrink: 0;
+  background: #ffebee;
+  color: #c62828;
+  border: 1px solid #ffcdd2;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all var(--transition);
+  white-space: nowrap;
+}
+
+.delete-btn:hover {
+  background: #ffcdd2;
+  border-color: #ef9a9a;
+}
+
+.delete-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-empty-note {
+  font-size: 12px;
+  color: var(--text-muted);
+  padding: 8px 4px;
+  text-align: center;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 480px) {
   .container { padding: 16px 12px; }

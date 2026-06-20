@@ -51,6 +51,24 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      case 'delete-article': {
+        const { id } = payload
+        if (!id) throw new Error('id required')
+        // Delete the article's image from storage if it exists
+        const { data: article } = await sb.from('articles').select('id, image_url').eq('id', id).single()
+        if (article?.image_url) {
+          const pathMatch = article.image_url.match(/\/article-images\/(.+)$/)
+          if (pathMatch) {
+            await sb.storage.from('article-images').remove([pathMatch[1]])
+              .catch(() => {}) // don't fail if image removal fails
+          }
+        }
+        const { error } = await sb.from('articles').delete().eq('id', id)
+        if (error) throw error
+        return new Response(JSON.stringify({ success: true, id }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
       case 'upload-image': {
         const { article_id, base64 } = payload
         const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/)
