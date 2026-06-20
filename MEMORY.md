@@ -17,28 +17,38 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
                                                           │
                                                           ▼
                                                   generate-article (Deno)
-                                              (OpenRouter LLM → owl-alpha)
+                                              (OpenRouter LLM, model-selectable)
                                                           │
                                                           ▼
                                                   articles table (draft)
                                                           │
-                                                          ▼
-                                                  publish-article.py (CLI/CI)
-                                                          │
-                                                          ▼
-                                                  articles table (published)
-                                                          │
-                                                          ▼
-                                                  GitHub Pages frontend
-                                              (index.html → Supabase API)
+                                           ┌────────────────┴────────────────┐
+                                           │                               │
+                                    publish-article.py               Admin Editor
+                                    (CLI / CI)                    (inline split-pane)
+                                                                         │
+                                           │                    ┌────────┴──────────┐
+                                           ▼                    ▼                   ▼
+                                  articles table           Edit fields       Photo section
+                                  (published)           (title, summary,    (Pollinations AI
+                                           │             content, tags,      image generation
+                                           ▼             category, SEO)      or file upload)
+                                  GitHub Pages                                    │
+                              (index.html → Supabase API)                  rapid-processor
+                                                                           (Edge Function)
+                                                                         ┌────┴────┐
+                                                                     Supabase      Supabase
+                                                                     Storage        articles
+                                                                   (article-images)  (update)
 ```
 
-### Data Flow
+### Data Flow (Admin Editor)
 
-1. **Fetch** — `fetch-trends` Edge Function polls `https://trends.google.com/trending/rss?geo=PH`, parses RSS, auto-categorizes trends, deduplicates by slug, stores new trends with source URLs in Supabase.
-2. **Generate** — `generate-article` Edge Function takes a `trend_id`, fetches trend + sources, builds a category-specific prompt, calls OpenRouter's `owl-alpha` model, saves the AI-generated article as **draft** in Supabase.
-3. **Publish** — `publish-article.py` CLI tool validates draft JSON files (title ≤ 65 chars, content 400–700 words, no forbidden phrases), inserts as **published** into Supabase.
-4. **Display** — Static frontend on GitHub Pages fetches published articles from Supabase via the anon key (RLS-protected, read-only).
+1. **Fetch Trends** — Admin page loads trends from DB; background-fetches from Google Trends
+2. **Generate** — Select a model (owl-alpha or deepseek-v4-flash), click Generate → `generate-article` Edge Function saves draft in Supabase
+3. **Edit** — Split-pane editor opens inline: edit title, summary, content, tags, category, SEO description
+4. **Photo** — Enter image prompt → "Generate with AI" uses free Pollinations.ai → preview → "Use This Photo" saves to Supabase Storage via `rapid-processor`
+5. **Save / Publish** — Save Draft calls `rapid-processor update-article`; Publish flips status to `published` with content validation
 
 ---
 
@@ -48,7 +58,9 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 |-------|-----------|
 | Database | Supabase (PostgreSQL) |
 | Edge Functions | Deno (TypeScript) |
-| AI/LLM | OpenRouter → owl-alpha |
+| AI/LLM | OpenRouter (owl-alpha / deepseek-v4-flash, selectable) |
+| AI Images | Pollinations.ai (free, no API key) |
+| Image Storage | Supabase Storage (article-images bucket) |
 | CLI tool | Python 3.11+ |
 | CI/CD | GitHub Actions |
 | Frontend | HTML / CSS / JavaScript (vanilla) |
@@ -71,15 +83,18 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 │   ├── functions/
 │   │   ├── fetch-trends/
 │   │   │   └── index.ts           # Poll Google Trends PH RSS
-│   │   └── generate-article/
-│   │       └── index.ts           # Call OpenRouter LLM to write articles
+│   │   ├── generate-article/
+│   │   │   └── index.ts           # Call OpenRouter LLM (model-selectable)
+│   │   └── rapid-processor/
+│   │       └── index.ts           # Admin CRUD: get/update/publish article + upload image
 │   └── migrations/
 │       ├── 0001_initial_schema.sql
 │       ├── 0002_add_missing_columns.sql
-│       └── 0003_fix_trend_id_nullable.sql
+│       ├── 0003_fix_trend_id_nullable.sql
+│       └── 0004_article_images_bucket.sql    # Storage bucket + RLS policies
 ├── index.html                     # Frontend: main SPA entry point
 ├── style.css                      # Frontend: styles
-├── app.js                         # Frontend: Supabase client + routing
+├── app.js                         # Frontend: Supabase client + routing + admin editor
 ├── README.md
 ├── MEMORY.md                      # This file
 └── .gitignore
@@ -107,11 +122,20 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 - `id` (UUID, PK), `trend_id` (FK → trends, nullable), `title`, `slug` (unique), `summary`, `content`, `content_html`, `image_url`, `image_prompt`, `seo_description`, `tags` (TEXT[]), `category`, `status` (draft|review|published|archived), `featured`, `views`, `published_at`
 - RLS: SELECT for published articles only (anon), ALL for admin/editor roles
 
+### Storage Bucket
+
+**`article-images`** — Article photos
+- Public read access (anyone can view images)
+- Service role full access (Edge Function uploads)
+- Max file size: 2 MB
+- Allowed MIME types: image/jpeg, image/png, image/webp, image/gif
+
 ### Migrations Applied
 
 1. **0001** — Initial schema: all tables, indexes, RLS policies
 2. **0002** — Idempotent safety net: `ADD COLUMN IF NOT EXISTS` for `category`, `content_html`, `image_url`, `image_prompt`, `seo_description`, `tags`, `featured`, `views`, plus drop/recreate of the articles RLS policies. These columns already exist in the committed 0001, but an earlier 0001 revision was deployed to the live DB without them — 0002 guarantees they're present regardless of which 0001 was applied.
 3. **0003** — Dropped `NOT NULL` constraint on `articles.trend_id` (CI publishes drafts without a trend_id)
+4. **0004** — Created `article-images` storage bucket with public read & service role RLS policies (idempotent)
 
 ---
 
@@ -123,7 +147,7 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 | `SUPABASE_SERVICE_ROLE_KEY` | Edge Functions | ✅ |
 | `SUPABASE_SERVICE_KEY` | Python scripts | ✅ |
 | `OPENROUTER_API_KEY` | `generate-article` function | ✅ |
-| `OPENROUTER_MODEL` | `generate-article` function (default: `openrouter/owl-alpha`) | ❌ |
+| `OPENROUTER_MODEL` | `generate-article` function (default: `openrouter/owl-alpha`, overrideable from frontend) | ❌ |
 
 ### Frontend (public, embedded in app.js)
 - `SUPABASE_URL` — `https://nvxykufajzppjtkmbtte.supabase.co`
@@ -145,35 +169,26 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 
 ---
 
-## Key Fixes: Edge Function DB Mismatch
+## Edge Functions
 
-### The Problem
+### `fetch-trends`
+- Polls `https://trends.google.com/trending/rss?geo=PH`
+- Parses RSS, auto-categorizes, deduplicates by title
+- Stores with `impact_score` (0–100), `source_links` (JSONB), `status: 'published'`
 
-The `fetch-trends` Edge Function was written against a **migration schema** (`slug`, `impact_rating`, `search_volume`, `status: 'active'`) that didn't match the **live Supabase DB** columns. The live trends table has:
+### `generate-article`
+- Takes `trend_id` and optional `model` (overrides `OPENROUTER_MODEL` env var)
+- Builds category-specific prompt, calls OpenRouter, saves draft to Supabase
+- Supported models: `openrouter/owl-alpha` (default), `deepseek/deepseek-v4-flash`
 
-| Column | Type | Notes |
-|--------|------|-------|
-| `id` | UUID | PK, auto-generated |
-| `title` | TEXT | Trend title from RSS |
-| `summary` | TEXT | Description from RSS |
-| `category` | TEXT | Auto-categorized (Sports, Politics, etc.) |
-| `impact_score` | INTEGER | 0–100, derived from `ht:approx_traffic` |
-| `source_links` | JSONB | Array of `{url, name}` objects from RSS news items |
-| `status` | TEXT | **Must be `'published'`** (check constraint, not `'active'`) |
-| `created_at` | TIMESTAMPTZ | Auto |
-| `updated_at` | TIMESTAMPTZ | Auto |
-
-**Missing from live DB** (present in migration): `slug` ❌, `impact_rating` ❌, `search_volume` ❌, `published_at` ❌
-
-### The Fix (2026-06-19)
-
-The Edge Function was rewritten to:
-- Match actual live DB columns: `title`, `summary`, `category`, `impact_score`, `source_links`, `status: 'published'`
-- Use `title` for duplicate detection (exact match via `.eq()`)
-- Parse `ht:approx_traffic` from RSS → convert to `impact_score` (0–100 scale)
-- Parse `ht:news_item` tags → store as `source_links` array (no separate `trend_sources` table)
-- Added debug logging to diagnose insert failures
-- Deployed via `supabase functions deploy fetch-trends --project-ref nvxykufajzppjtkmbtte`
+### `rapid-processor` (admin CRUD)
+Consolidated admin Edge Function handling 4 actions:
+| Action | Purpose |
+|--------|---------|
+| `get-article` | Fetch any article by ID (draft or published) |
+| `update-article` | Save edits to title, summary, content, tags, category, SEO, image fields |
+| `publish-article` | Flip status to published + set `published_at` |
+| `upload-image` | Accept base64 → store in `article-images` bucket → return public URL + update article |
 
 ---
 
@@ -182,22 +197,79 @@ The Edge Function was rewritten to:
 **URL:** `https://mack0y.github.io/TrendwirePhilippines/#/admin` (no public link — private)
 
 ### Features
-- **📥 Fetch Latest PH Trends** button — Calls `fetch-trends` Edge Function, shows toast notification with count
+- **📥 Fetch Latest PH Trends** button — Calls `fetch-trends` Edge Function, shows toast notification
+- **🤖 Model Selector** — Dropdown to choose between `Owl Alpha` and `DeepSeek V4 Flash` for article generation
 - **Impact score badges** — Trends display 🔥 (≥70), 📈 (≥40), or 📊 (<40) badge with score
 - **Sort by highest score** — Trends ordered by `impact_score DESC`, then `created_at DESC`
 - **Instant load** — Trends shown immediately from DB, then background-fetches from Google Trends
-- **✏️ Generate Article** — Each trend has a button that calls `generate-article` Edge Function
-- **Article result** — Green success box with title, word count, tags, category after generation
+- **✏️ Generate Article** — Each trend has a button; clicking opens the **inline split-pane editor**
 - **Toast notifications** — Fixed-position bar at top, auto-dismisses after 4s (green=success, blue=info, red=error)
 
-### Files Edited
-- `app.js` — Added `fetchFromGoogleTrends()`, `searchTrendsDB()`, `renderAdmin()` with full admin dashboard | `showToast()` for notifications
-- `style.css` — Added `.admin-toolbar`, `.fetch-btn`, `.toast`, `.impact-badge` styles
-- `index.html` — Cache-bust `?v=N` increment on each deploy
+### Inline Split-Pane Editor
+When the editor is open, the admin splits into two columns:
+- **Left sidebar:** Compact trend list (still scrollable)
+- **Right pane:** Full article editor with:
 
-### Cache-Busting
+| Field | Features |
+|-------|----------|
+| **Title** | Text input, live 65-char counter |
+| **Summary** | Textarea, live 160-char counter |
+| **Content** | Large textarea, live word count (400–700 range indicator) |
+| **Category** | Dropdown (General, Sports, Politics, Disaster, Economy, Health, Technology, Entertainment) |
+| **Tags** | Text input, comma-separated, live preview as pills |
+| **SEO Description** | Textarea, live 155-char counter |
+
+### Photo Section
+- **Image Prompt** — Textarea for DALL-E/Midjourney style prompt
+- **🎨 Generate with AI** — Calls Pollinations.ai (free, no API key) → image preview with loading spinner
+- **✅ Use This Photo** — Saves generated image to Supabase Storage via `rapid-processor`
+- **📁 Upload from Device** — File picker → validates 2 MB max → uploads to Supabase Storage
+- **🗑️ Remove** — Removes the current photo
+- **Note:** Publish is disabled until a photo is attached
+
+### Action Buttons
+- **💾 Save Draft** — Saves all edits via `rapid-processor update-article`
+- **📢 Publish** — Validates content (400–700 words) + photo required, then saves + publishes
+- **✕ Close** — Closes the editor without saving
+
+### Content Validation (frontend)
+- Title: max 65 characters (enforced by maxlength + visual counter)
+- Content: 400–700 words (visual indicator + block on publish if out of range)
+- Photo: required before publishing (publish button disabled)
+
+---
+
+## Key Fixes
+
+### Edge Function DB Mismatch (2026-06-19)
+The `fetch-trends` Edge Function was written against a **migration schema** (`slug`, `impact_rating`, `search_volume`, `status: 'active'`) that didn't match the **live Supabase DB** columns. Fixed to match actual columns (`impact_score`, `source_links`, `status: 'published'`).
+
+### Editor Implementation (2026-06-20)
+- Built inline split-pane editor with live field counters
+- Added free AI image generation via Pollinations.ai
+- Created `rapid-processor` Edge Function for admin CRUD
+- Added Supabase Storage bucket `article-images` for photo storage
+- Added model selector (owl-alpha / deepseek-v4-flash)
+- Fixed tag XSS by using `escHtml()` in tag preview rendering
+- Added content length validation (400–700 words) before publishing
+
+---
+
+## Cache-Busting History
+
+| Version | Change |
+|---------|--------|
+| v2 | Initial deploy |
+| v3 | CDN refresh |
+| v4 | Impact badge fix |
+| v5 | Impact falsy fix |
+| v6 | Admin dashboard |
+| v7 | Split-pane editor, Pollinations AI, image upload |
+| v8 | Model selector |
+
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
-- Bump `N` on each deploy: v2 → v3 → v4 → v5 → v6
+- Bump `N` on each deploy
+- GitHub Pages CDN can take 1–5 minutes to propagate
 
 ---
 
@@ -207,21 +279,24 @@ The Edge Function was rewritten to:
 - ✅ **Missing columns** — Migration 0002 added missing `articles` columns (caused `PGRST204` error)
 - ✅ **trend_id NOT NULL** — Migration 0003 dropped the NOT NULL constraint (caused `23502` error when publishing without `--trend-id`)
 - ✅ **Hardcoded API key** — `test_pipeline.py` previously had the service key hardcoded; now reads from env vars
-- ✅ **`.env.example` stale** — Replaced Vite-style `VITE_*` names with the real vars (`SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `OPENROUTER_API_KEY`) the scripts/functions actually read
-- ✅ **Missing migration in git** — `0002_add_missing_columns.sql` is now committed (idempotent `IF NOT EXISTS` form)
-- ✅ **Draft re-publishing duplicates** — `publish-article.py` now moves published drafts into `drafts/published/`, so `--latest` skips them; `--latest` with no unpublished drafts exits cleanly instead of erroring
-- ✅ **`test_pipeline.py` false success** — Publish step now sends an ISO timestamp (not literal `now()`), uses `Prefer: return=representation`, and verifies the returned row's `status === 'published'`
-- ✅ **Category naming mismatch** — Sample draft normalized from `Sports/Entertainment` to `Sports` (matches `fetch-trends` output and `generate-article` prompt branching)
-- ✅ **Edge Function DB mismatch** — `fetch-trends` was using `slug`, `impact_rating`, `search_volume`, `status: 'active'` which don't exist in live DB. Fixed to use actual columns (`impact_score`, `source_links`, `status: 'published'`)
-- ✅ **Impact score falsy bug** — `t.impact_score ? ... : ''` skipped score 0. Fixed to `t.impact_score != null`
+- ✅ **`.env.example` stale** — Replaced Vite-style `VITE_*` names with the real vars
+- ✅ **Draft re-publishing duplicates** — `publish-article.py` now moves published drafts into `drafts/published/`
+- ✅ **Category naming mismatch** — Sample draft normalized from `Sports/Entertainment` to `Sports`
+- ✅ **Edge Function DB mismatch** — `fetch-trends` was using wrong columns, fixed to match live DB
+- ✅ **Impact score falsy bug** — Fixed `t.impact_score != null` check
+- ✅ **Tag XSS** — Tag preview in editor now uses `escHtml()` escaping
+- ✅ **Content validation** — Frontend blocks publish if content is <400 or >700 words
 
 ### Watch Out For
-- **Draft re-publishing** — Fixed: published drafts are auto-archived to `drafts/published/`. (Old behavior re-published the latest draft on every push with a timestamped slug.) If you ever want to re-publish, restore a draft from `drafts/published/` into `drafts/`.
-- **Stale category on live rows** — The original Clarkson article (`8b559233…`) still carries `category: "Sports/Entertainment"` from before the draft was normalized to `Sports`. Cosmetic only — it displays fine, but won't match `generate-article` branching. Patch the row if you want consistency.
-- **Frontend cache** — The article list is cached in-memory on first load. New articles won't appear until the user refreshes the page.
-- **GitHub Pages 404 on fresh deploy** — Can take 2–5 minutes for Pages to deploy after enabling or pushing changes.
-- **RLS for editors** — The "Admins manage articles" policy requires a matching `profiles` entry. Editors/admins must sign up through Supabase Auth first.
-- **CDN cache on frontend** — After pushing JS changes, increment `?v=N` in `index.html` to force browser cache bust. GitHub Pages CDN can take 1–5 minutes to propagate.
+- **OpenRouter rate limit** — The free tier has a daily request cap. When exceeded, generation returns "Rate limit exceeded: free-models-per-day. Add $5 to unlock 1000 free requests/day."
+- **Draft re-publishing** — Published drafts are auto-archived to `drafts/published/`. To re-publish, restore from there.
+- **Stale category on live rows** — The original Clarkson article still carries `category: "Sports/Entertainment"` from before normalization.
+- **Frontend cache** — The article list is cached in-memory on first load. Refresh page to see new articles.
+- **GitHub Pages 404 on fresh deploy** — Can take 2–5 minutes for Pages to deploy after pushing.
+- **CDN cache on frontend** — After pushing JS changes, increment `?v=N` in `index.html`.
+- **Model selector reset** — Resets to default on page reload (no localStorage persistence).
+- **Pollinations.ai reliability** — Free AI image generation may have variable latency or occasional failures.
+- **Supabase Storage free tier** — 1 GB total storage, 5 GB/month bandwidth, 2 MB max per file.
 
 ---
 
@@ -233,20 +308,15 @@ Full end-to-end test run against production (Python 3.14 + `supabase` 2.31.0):
 |---|---|
 | Service-key DB access | ✅ Full read/write confirmed |
 | `publish-article.py --latest --dry-run` | ✅ Valid (524 words, title 54 chars, no forbidden phrases) |
-| `test_pipeline.py` full E2E | ✅ connection → fetch trends (0 new, dedup ok) → grabbed "haiti vs scotland [Technology]" → owl-alpha generated *"Scotland Fans Gear Up in Beijing for World Cup Return"* → publish **verified** (`status === 'published'` via returned row) |
-| Duplicate cleanup | ✅ Deleted 2 timestamped-slug Clarkson copies; kept original `8b559233…`. Articles went 4 → 2 |
-| Frontend read path (anon key) | ✅ Returns 2 clean, fully-populated articles |
-
-**Fix #5 (publish verification) proven live** — the test printed `✅ Published (verified)`, which only fires when the returned row's status is confirmed. The old code would have reported success on a no-op PATCH.
+| `test_pipeline.py` full E2E | ✅ connection → fetch → generate → publish verified |
+| Duplicate cleanup | ✅ Deleted 2 timestamped-slug copies; kept original |
+| Frontend read path (anon key) | ✅ Returns 2 clean articles |
 
 ### Current Production State
-- **2 published articles:**
-  1. `scotland-fans-gear-up-in-beijing-for-world-cup-return` (2026-06-19, generated by owl-alpha during this test)
-  2. `jordan-clarkson-one-win-away-from-filipino-nba-history` (2026-06-14, original — deduped)
-- **11 trends** in the DB (all from June 19, 2026 — fetched by fixed Edge Function)
+- **2 published articles:** Scotland World Cup article + Jordan Clarkson article
+- **11 trends** in the DB (all from June 19, 2026)
 - **0 drafts** in DB
-- **Old trends cleaned up** — 10 stale NBA-related trends from June 14 deleted via temporary Edge Function
-- **Supabase access token** — stored in conversation for Edge Function deploys (do not commit to git)
+- **Supabase access token** — stored in conversation (do not commit to git)
 
 ---
 
@@ -281,15 +351,20 @@ This tests: connection → fetch trends → get latest trend → generate articl
 
 ---
 
-## Adding a New Article Manually
+## Deployment Steps (after code changes)
 
-1. Create a JSON file in `drafts/` following the format in `jordan-clarkson-nba-finals-2026.json`
-2. Push to `main` — the CI will auto-publish it
-3. Verify it appears on the live site
-
-Or publish manually:
 ```bash
-python scripts/publish-article.py --file drafts/my-article.json
+# 1. Deploy/update Edge Functions
+supabase functions deploy fetch-trends --project-ref nvxykufajzppjtkmbtte
+supabase functions deploy generate-article --project-ref nvxykufajzppjtkmbtte
+supabase functions deploy rapid-processor --project-ref nvxykufajzppjtkmbtte
+
+# 2. Run migrations (if new)
+# Open https://supabase.com/dashboard/project/nvxykufajzppjtkmbtte/sql/new
+# Paste and run any new migration files
+
+# 3. Push to GitHub
+git add -A && git commit -m "description" && git push
 ```
 
 ---
@@ -299,4 +374,4 @@ python scripts/publish-article.py --file drafts/my-article.json
 - **Anon key in frontend** is safe — Supabase RLS restricts reads to `status = 'published'` only
 - **Service role key** is NEVER used client-side; reserved for backend scripts and Edge Functions
 - **GitHub Secrets** store all credentials for CI workflows
-- Row-Level Security is enabled on all tables
+- Row-Level Security is enabled on all tables + storage bucket
