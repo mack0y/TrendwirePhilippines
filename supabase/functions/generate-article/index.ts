@@ -48,6 +48,14 @@ serve(async (req) => {
       structure = `ENGAGING EXPLAINER. Sections: HEADLINE(65 chars) → HOOK(surprising fact/question) → WHAT'S THIS ABOUT(key facts) → THE CONTEXT(background) → WHY FILIPINOS CARE(local angle) → WHAT'S NEXT → BOTTOM LINE. NO section labels in output.`
     }
 
+    const paragraphRule = `FORMATTING RULES:
+- Separate paragraphs with TWO newlines (\n\n). NEVER use single \n between paragraphs.
+- Each paragraph should be 2-4 sentences.
+- Use **bold** SPARINGLY — only for the most important 1-2 key phrases per article. Never bold entire sentences.
+- Never use bullet points, numbered lists, or headings. Only paragraphs and bold text.`
+
+
+
     const prompt = `You are a top Filipino journalist writing for TrendWire Philippines.
 
 Topic: ${trend.title}
@@ -60,6 +68,8 @@ ${srcText}
 RULE: Do NOT mention Google Trends, search traffic, or trending data. The article is about the story itself.
 
 ${structure}
+
+${paragraphRule}
 
 WRITING: Conversational Filipino English. Short paragraphs (2-4 sentences). Bold key points with **bold**. 400-700 words. Never sound like a textbook. Every paragraph hooks the next.
 

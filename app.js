@@ -884,6 +884,31 @@ function escHtml(str) {
   return d.innerHTML
 }
 
+// Markdown to HTML for article content
+function renderMarkdown(content) {
+  if (!content) return ''
+
+  // Escape HTML first to prevent injection, then convert markdown
+  let html = content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+
+  // Convert **text** to <strong>text</strong>
+  html = html.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+
+  // Split by double newlines (paragraph breaks)
+  const blocks = html.split('\n\n').filter(b => b.trim())
+
+  if (blocks.length === 0) return ''
+
+  return blocks.map(block => {
+    // Handle single line breaks within a paragraph → <br>
+    const lines = block.split('\n').filter(l => l.trim())
+    return `<p>${lines.join('<br>')}</p>`
+  }).join('')
+}
+
 // ── Render: Article Detail ────────────────────────
 async function renderArticle(slug) {
   const app = document.getElementById('app')
@@ -907,7 +932,7 @@ async function renderArticle(slug) {
     }
 
     const content = article.content || ''
-    const paragraphs = content.split('\n\n').filter(p => p.trim())
+    const renderedContent = renderMarkdown(content)
 
     const pageUrl = encodeURIComponent(window.location.href)
     const shareText = encodeURIComponent(`${article.title} — TrendWire Philippines`)
@@ -937,7 +962,7 @@ async function renderArticle(slug) {
 
           <div class="article-content">
             ${article.summary ? `<div class="summary-box">${article.summary}</div>` : ''}
-            ${paragraphs.map(p => `<p>${p.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')}</p>`).join('')}
+            ${renderedContent}
           </div>
 
           <div class="share-bar">
