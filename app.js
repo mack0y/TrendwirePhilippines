@@ -281,6 +281,8 @@ async function renderAdmin() {
   let allArticles = []
   let loadingArticles = false
   let deletingArticle = null
+  let selectedIds = new Set()
+  let bulkDeleting = false
 
   // Editor state
   let editingArticle = null
@@ -318,6 +320,47 @@ async function renderAdmin() {
     } catch (e) {
       loadingArticles = false
       showToast('❌ Failed to load articles: ' + e.message, 'error')
+      render()
+    }
+  }
+
+  function handleToggleSelect(id) {
+    if (selectedIds.has(id)) {
+      selectedIds.delete(id)
+    } else {
+      selectedIds.add(id)
+    }
+    render()
+  }
+
+  function handleSelectAll() {
+    const selectable = allArticles.filter(a => a.status === 'published' || a.status === 'draft')
+    const allSelected = selectable.every(a => selectedIds.has(a.id))
+    if (allSelected) {
+      selectedIds = new Set()
+    } else {
+      selectedIds = new Set(selectable.map(a => a.id))
+    }
+    render()
+  }
+
+  async function handleDeleteSelected() {
+    if (selectedIds.size === 0) return
+    const count = selectedIds.size
+    if (!confirm(`Delete ${count} article${count !== 1 ? 's' : ''}? This cannot be undone.`)) return
+    bulkDeleting = true
+    render()
+    try {
+      await adminOperation('delete-articles', { ids: Array.from(selectedIds) })
+      allArticles = allArticles.filter(a => !selectedIds.has(a.id))
+      articles = [] // Clear cached published articles
+      selectedIds = new Set()
+      bulkDeleting = false
+      showToast(`🗑️ ${count} article${count !== 1 ? 's' : ''} deleted`, 'success')
+      render()
+    } catch (e) {
+      bulkDeleting = false
+      showToast('❌ Bulk delete failed: ' + e.message, 'error')
       render()
     }
   }
@@ -663,13 +706,34 @@ async function renderAdmin() {
     if (allArticles.length) {
       const published = allArticles.filter(a => a.status === 'published')
       const drafts = allArticles.filter(a => a.status === 'draft')
+      const selectable = allArticles.filter(a => a.status === 'published' || a.status === 'draft')
+      const allSelected = selectable.length > 0 && selectable.every(a => selectedIds.has(a.id))
 
-      articlesHtml = `
-        <div class="admin-section-divider">📰 Published Articles (${published.length})</div>
-        ${published.length ? published.map(a => `
+      const bulkBarHtml = selectedIds.size > 0 && !hasEditor ? `
+        <div class="bulk-bar">
+          <span class="bulk-count">${selectedIds.size} selected</span>
+          <button class="bulk-delete-btn" onclick="renderAdmin.__deleteSelected()"
+                  ${bulkDeleting ? 'disabled' : ''}>
+            ${bulkDeleting ? '⏳ Deleting…' : '🗑️ Delete Selected'}
+          </button>
+          <button class="bulk-cancel-btn" onclick="renderAdmin.__clearSelection()">✕ Clear</button>
+        </div>
+      ` : ''
+
+      function renderCard(a, isDraft) {
+        const checked = selectedIds.has(a.id) ? 'checked' : ''
+        const disabled = deletingArticle === a.id || bulkDeleting ? 'disabled' : ''
+        return `
           <div class="article-manage-card ${deletingArticle === a.id ? 'deleting' : ''}">
+            <label class="article-checkbox-label" onclick="event.stopPropagation()">
+              <input type="checkbox" class="article-checkbox" ${checked} ${disabled}
+                     onchange="renderAdmin.__toggleSelect('${a.id}')">
+            </label>
             <div class="article-manage-info">
-              <a class="article-manage-title" href="#/article/${a.slug}" target="_blank">${escHtml(a.title)}</a>
+              ${isDraft
+                ? `<span class="article-manage-title draft-title">${escHtml(a.title)}</span>`
+                : `<a class="article-manage-title" href="#/article/${a.slug}" target="_blank">${escHtml(a.title)}</a>`
+              }
               <div class="article-manage-meta">
                 <span class="category-badge-sm ${a.category || 'General'}">${a.category || 'General'}</span>
                 <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
@@ -677,28 +741,29 @@ async function renderAdmin() {
             </div>
             <button class="delete-btn" onclick="renderAdmin.__deleteArticle('${a.id}', '${escHtml(a.title).replace(/'/g, "\\'")}')"
                     ${deletingArticle === a.id ? 'disabled' : ''}>
-              ${deletingArticle === a.id ? '⏳…' : '🗑️ Delete'}
+              ${deletingArticle === a.id ? '⏳…' : '🗑️'}
             </button>
           </div>
-        `).join('') : `<p class="admin-empty-note">No published articles</p>`}
+        `
+      }
+
+      articlesHtml = `
+        <div class="admin-section-divider">
+          <label class="select-all-label" onclick="event.stopPropagation()">
+            <input type="checkbox" class="article-checkbox" ${allSelected ? 'checked' : ''}
+                   ${bulkDeleting ? 'disabled' : ''}
+                   onchange="renderAdmin.__selectAll()">
+          </label>
+          📰 Published Articles (${published.length})
+        </div>
+        ${bulkBarHtml}
+        ${published.length ? published.map(a => renderCard(a, false)).join('') : `<p class="admin-empty-note">No published articles</p>`}
 
         ${drafts.length ? `
-        <div class="admin-section-divider" style="margin-top:16px">📝 Drafts (${drafts.length})</div>
-        ${drafts.map(a => `
-          <div class="article-manage-card ${deletingArticle === a.id ? 'deleting' : ''}">
-            <div class="article-manage-info">
-              <span class="article-manage-title draft-title">${escHtml(a.title)}</span>
-              <div class="article-manage-meta">
-                <span class="category-badge-sm ${a.category || 'General'}">${a.category || 'General'}</span>
-                <span>📅 ${formatDate(a.created_at)}</span>
-              </div>
-            </div>
-            <button class="delete-btn" onclick="renderAdmin.__deleteArticle('${a.id}', '${escHtml(a.title).replace(/'/g, "\\'")}')"
-                    ${deletingArticle === a.id ? 'disabled' : ''}>
-              ${deletingArticle === a.id ? '⏳…' : '🗑️ Delete'}
-            </button>
-          </div>
-        `).join('')}
+        <div class="admin-section-divider" style="margin-top:16px">
+          📝 Drafts (${drafts.length})
+        </div>
+        ${drafts.map(a => renderCard(a, true)).join('')}
         ` : ''}
       `
     } else if (loadingArticles) {
@@ -952,6 +1017,10 @@ async function renderAdmin() {
   renderAdmin.__useGeneratedImage = handleUseGeneratedImage
   renderAdmin.__handleFileUpload = handleFileUpload
   renderAdmin.__deleteArticle = handleDeleteArticle
+  renderAdmin.__toggleSelect = handleToggleSelect
+  renderAdmin.__selectAll = handleSelectAll
+  renderAdmin.__deleteSelected = handleDeleteSelected
+  renderAdmin.__clearSelection = () => { selectedIds = new Set(); render() }
 
   renderAdmin.__removePhoto = () => {
     uploadedImageUrl = null

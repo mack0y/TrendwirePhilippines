@@ -72,6 +72,29 @@ serve(async (req) => {
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
       }
 
+      case 'delete-articles': {
+        const { ids } = payload
+        if (!ids || !Array.isArray(ids) || !ids.length) throw new Error('ids array required')
+        // Delete images from storage for all articles
+        const { data: articles } = await sb.from('articles').select('id, image_url').in('id', ids)
+        if (articles) {
+          for (const article of articles) {
+            if (article.image_url) {
+              const pathMatch = article.image_url.match(/\/article-images\/(.+)$/)
+              if (pathMatch) {
+                await sb.storage.from('article-images').remove([pathMatch[1]])
+                  .catch(() => {})
+              }
+            }
+          }
+        }
+        // Bulk delete all articles
+        const { error } = await sb.from('articles').delete().in('id', ids)
+        if (error) throw error
+        return new Response(JSON.stringify({ success: true, deleted: ids.length }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      }
+
       case 'upload-image': {
         const { article_id, base64 } = payload
         const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/)
