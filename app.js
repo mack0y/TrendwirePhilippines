@@ -2002,11 +2002,15 @@ async function renderArticle(slug) {
 // ── Boot ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   handleRoute()
-  // Fetch weather in background (sidebar will show loading until it arrives)
+  // Fetch weather in background — update only the weather card, no full re-render
   fetchWeather().then(function() {
-    // Re-render if we're on the list page to show weather
-    if (currentRoute === 'list') {
-      renderList()
+    if (currentRoute !== 'list') return
+    var sidebar = document.querySelector('.landing-sidebar')
+    if (sidebar) {
+      var existing = sidebar.querySelector('.weather-card, .weather-error')
+      if (existing) {
+        existing.outerHTML = renderWeatherWidget()
+      }
     }
   })
 })
