@@ -13,33 +13,37 @@ TrendWire Philippines is an automated news publishing system that fetches trendi
 ## Architecture
 
 ```
-Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supabase)
-                                                          │
-                                                          ▼
-                                                  generate-article (Deno)
-                                              (OpenRouter LLM, model-selectable)
-                                                          │
-                                                          ▼
-                                                  articles table (draft)
-                                                          │
-                                           ┌────────────────┴────────────────┐
-                                           │                               │
-                                    publish-article.py               Admin Editor
-                                    (CLI / CI)                    (inline split-pane)
-                                                                         │
-                                           │                    ┌────────┴──────────┐
-                                           ▼                    ▼                   ▼
-                                  articles table           Edit fields       Photo section
-                                  (published)           (title, summary,    (Pollinations AI
-                                           │             content, tags,      image generation
-                                           ▼             category, SEO)      or file upload)
-                                  GitHub Pages                                    │
-                              (index.html → Supabase API)                  rapid-processor
-                                                                           (Edge Function)
-                                                                         ┌────┴────┐
-                                                                     Supabase      Supabase
-                                                                     Storage        articles
-                                                                   (article-images)  (update)
+Google Trends PH RSS ──┐
+                        ├──>  fetch-multi-sources (Deno)  ──>  trends table (Supabase)
+Rappler RSS ───────────┘          │
+                                  ├─ dedup + score cross-source
+                                  └─ Telegram alerts (score ≥ 70)
+                                                                   │
+                                                                   ▼
+                                                           generate-article (Deno)
+                                                       (OpenRouter LLM, model-selectable)
+                                                                   │
+                                                                   ▼
+                                                           articles table (draft)
+                                                                   │
+                                                    ┌────────────────┴────────────────┐
+                                                    │                               │
+                                             publish-article.py               Admin Editor
+                                             (CLI / CI)                    (inline split-pane)
+                                                                              │
+                                                    │                    ┌────────┴──────────┐
+                                                    ▼                    ▼                   ▼
+                                           articles table           Edit fields       Photo section
+                                           (published)           (title, summary,    (Pollinations AI
+                                                    │             content, tags,      image generation
+                                                    ▼             category, SEO)      or file upload)
+                                           GitHub Pages                                    │
+                                       (index.html → Supabase API)                  rapid-processor
+                                                                                    (Edge Function)
+                                                                                  ┌────┴────┐
+                                                                              Supabase      Supabase
+                                                                              Storage        articles
+                                                                            (article-images)  (update)
 ```
 
 ### Data Flow (Admin Editor)
@@ -58,7 +62,7 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 |-------|-----------|
 | Database | Supabase (PostgreSQL) |
 | Edge Functions | Deno (TypeScript) |
-| AI/LLM | OpenRouter (owl-alpha / deepseek-v4-flash, selectable) |
+| AI/LLM | OpenRouter (owl-alpha / deepseek-v4-flash / openrouter/free, selectable) |
 | AI Images | Pollinations.ai (free, no API key) |
 | Image Storage | Supabase Storage (article-images bucket) |
 | CLI tool | Python 3.11+ |
@@ -72,6 +76,7 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 
 ```
 ├── .github/workflows/
+│   ├── auto-fetch-trends.yml      # Fetches trends from all sources every 30 min
 │   ├── publish-article.yml        # Manual/dispatch article publishing
 │   └── publish-ghpages.yml        # Auto-publish latest draft on push to main
 ├── drafts/                           # (empty — deleted test draft)
@@ -81,7 +86,9 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 ├── supabase/
 │   ├── functions/
 │   │   ├── fetch-trends/
-│   │   │   └── index.ts           # Poll Google Trends PH RSS
+│   │   │   └── index.ts           # Poll Google Trends PH RSS (original, single-source)
+│   │   ├── fetch-multi-sources/
+│   │   │   └── index.ts           # Multi-source fetcher: Google Trends + Rappler, dedup, Telegram alerts
 │   │   ├── generate-article/
 │   │   │   └── index.ts           # Call OpenRouter LLM (model-selectable)
 │   │   └── rapid-processor/
@@ -147,6 +154,9 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 | `SUPABASE_SERVICE_KEY` | Python scripts | ✅ |
 | `OPENROUTER_API_KEY` | `generate-article` function | ✅ |
 | `OPENROUTER_MODEL` | `generate-article` function (default: `openrouter/owl-alpha`, overrideable from frontend) | ❌ |
+| `TELEGRAM_BOT_TOKEN` | `fetch-multi-sources` function | ❌ (alerts skipped if not set) |
+| `TELEGRAM_CHAT_ID` | `fetch-multi-sources` function | ❌ (alerts skipped if not set) |
+| `SITE_URL` | `fetch-multi-sources` function (default: GitHub Pages URL) | ❌ |
 
 ### Frontend (public, embedded in app.js)
 - `SUPABASE_URL` — `https://nvxykufajzppjtkmbtte.supabase.co`
@@ -166,14 +176,27 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 - **Steps:** Same as above but accepts optional `article_file` and `trend_id` inputs
 - **Note:** Also triggers a GitHub Pages deployment
 
+### `auto-fetch-trends.yml`
+- **Trigger:** Cron every 30 minutes (`*/30 * * * *`) or `workflow_dispatch`
+- **Steps:** Calls `fetch-multi-sources` Edge Function via curl with `SUPABASE_ANON_KEY`
+- **Secrets:** `SUPABASE_ANON_KEY`
+
 ---
 
 ## Edge Functions
 
-### `fetch-trends`
+### `fetch-trends` (original, single-source)
 - Polls `https://trends.google.com/trending/rss?geo=PH`
 - Parses RSS, auto-categorizes, deduplicates by title
 - Stores with `impact_score` (0–100), `source_links` (JSONB), `status: 'published'`
+
+### `fetch-multi-sources` (multi-source)
+- Fetches from **Google Trends PH RSS** + **Rappler RSS** simultaneously
+- **Deduplicates** across sources using smart title similarity matching (word overlap ≥ 60%)
+- **Boosts** impact scores when the same topic appears in multiple sources (+15 per extra source)
+- **Telegram alerts** sent for high-impact trends (score ≥ 70) with category, score, source count, and admin link
+- Categorizes into 8 categories: General, Sports, Politics, Disaster, Economy, Health, Technology, Entertainment
+- Gracefully degrades if Telegram secrets are not set (skips alerts)
 
 ### `generate-article`
 - Takes `trend_id` and optional `model` (overrides `OPENROUTER_MODEL` env var)
@@ -266,6 +289,14 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - Fixed tag XSS by using `escHtml()` in tag preview rendering
 - Added content length validation (400–700 words) before publishing
 
+### Multi-Source Fetching + Telegram Alerts (2026-06-21)
+- **`fetch-multi-sources`** — New Edge Function that fetches from Google Trends PH + Rappler RSS simultaneously, deduplicates with smart title matching, boosts cross-source scores, and sends Telegram alerts for high-impact trends
+- **`auto-fetch-trends.yml`** — New GitHub Actions workflow that runs `fetch-multi-sources` every 30 minutes
+- **Hardcoded Telegram bot token fixed** — Removed fallback token from `fetch-multi-sources`, now reads from env var only
+- **Telegram secrets set** — `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` configured as Supabase secrets
+- **SUPABASE_ANON_KEY** — Added to GitHub secrets for the auto-fetch workflow
+- **Function verified** — Tested successfully: 20 unique trends fetched, 12 new saved, 1 Telegram alert sent (earthquake)
+
 ### Post-Launch Fixes (2026-06-20)
 - **Pollinations cache-bust** — Added `_=${Date.now()}` to image URL so Regenerate produces a new image
 - **Word count relaxed** — Lowered minimum from 400→300, raised max from 700→900
@@ -300,6 +331,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v9 | Delete article (single) + article management section |
 | v10 | Bulk delete with checkboxes + Select All |
 | v11 | Click to edit articles, trend search bar, markdown preview tab, prompt engineering overhaul |
+| v12 | Multi-source trend fetching (Google Trends + Rappler), dedup, Telegram alerts, auto-fetch every 30 min |
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy
@@ -392,6 +424,7 @@ This tests: connection → fetch trends → get latest trend → generate articl
 ```bash
 # 1. Deploy/update Edge Functions
 supabase functions deploy fetch-trends --project-ref nvxykufajzppjtkmbtte
+supabase functions deploy fetch-multi-sources --project-ref nvxykufajzppjtkmbtte
 supabase functions deploy generate-article --project-ref nvxykufajzppjtkmbtte
 supabase functions deploy rapid-processor --project-ref nvxykufajzppjtkmbtte
 
