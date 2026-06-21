@@ -106,6 +106,7 @@ function setMetaTags(opts) {
 
   setMeta('description', desc)
   setMeta('keywords', opts.keywords || 'Philippines news, trending PH, Filipino news')
+  setMeta('robots', opts.robots || 'index, follow')
 
   setMeta('og:title', title)
   setMeta('og:description', desc)
@@ -175,6 +176,9 @@ function updateSeoForList() {
 function updateSeoForArticle(article) {
   const articleUrl = SITE_URL + '/article/' + article.slug
   const imageUrl = article.image_url || DEFAULT_OG_IMAGE
+  const pubDate = article.published_at || article.created_at
+  const modDate = article.updated_at || article.published_at || article.created_at
+  const tags = article.tags || []
 
   setMetaTags({
     title: article.title + ' — ' + SITE_NAME,
@@ -182,18 +186,31 @@ function updateSeoForArticle(article) {
     url: articleUrl,
     image: imageUrl,
     ogType: 'article',
-    keywords: (article.tags || []).join(', '),
+    keywords: tags.join(', '),
   })
 
-  // Article schema
+  // OG article-specific meta tags
+  setMeta('article:published_time', pubDate)
+  setMeta('article:modified_time', modDate)
+  setMeta('article:section', article.category || 'General')
+  tags.forEach(function(tag) { setMeta('article:tag', tag) })
+
+  // NewsArticle schema (Google-preferred for news content)
+  var imageSchema = {
+    '@type': 'ImageObject',
+    'url': imageUrl,
+    'width': 1200,
+    'height': 630,
+  }
+
   injectLd('ld-article', {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': ['NewsArticle', 'Article'],
     headline: article.title,
     description: article.summary || article.seo_description || '',
-    image: imageUrl,
-    datePublished: article.published_at || article.created_at,
-    dateModified: article.updated_at || article.published_at || article.created_at,
+    image: imageSchema,
+    datePublished: pubDate,
+    dateModified: modDate,
     author: {
       '@type': 'Organization',
       name: SITE_NAME,
@@ -209,7 +226,21 @@ function updateSeoForArticle(article) {
       '@id': articleUrl,
     },
     articleSection: article.category || 'General',
-    keywords: (article.tags || []).join(', '),
+    keywords: tags.join(', '),
+    inLanguage: 'en-PH',
+    copyrightYear: new Date(pubDate).getFullYear(),
+    copyrightHolder: {
+      '@type': 'Organization',
+      name: SITE_NAME,
+    },
+    isAccessibleForFree: true,
+    hasPart: tags.length ? tags.map(function(tag, i) {
+      return {
+        '@type': 'Clip',
+        'name': tag,
+        'position': i + 1,
+      }
+    }) : undefined,
   })
 
   // Breadcrumb schema
@@ -1108,6 +1139,7 @@ async function renderAdmin() {
     title: 'Admin Dashboard — ' + SITE_NAME,
     description: 'TrendWire Philippines admin dashboard for managing trends and articles.',
     url: SITE_URL + '/admin',
+    robots: 'noindex, nofollow',
   })
   removeLd('ld-article')
   removeLd('ld-breadcrumb')
@@ -2112,7 +2144,7 @@ async function renderArticle(slug) {
 
           <div class="featured-image">
             ${article.image_url
-              ? `<img src="${article.image_url}" alt="${article.title} — ${SITE_NAME}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)">`
+              ? `<img src="${article.image_url}" alt="${escHtml(article.summary || article.title)} — ${SITE_NAME}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)">`
               : article.image_prompt
                 ? '📸 ' + article.image_prompt.slice(0, 80) + '…'
                 : '📰 No image available'}

@@ -1,5 +1,8 @@
-# TrendWire Philippines — Robots
 User-agent: *
 Allow: /
 
+# Sitemap
 Sitemap: https://mack0y.github.io/TrendwirePhilippines/sitemap.xml
+
+# Admin area (noindex handled via JS meta tag, but explicit disallow helps)
+Disallow: /admin
