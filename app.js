@@ -843,8 +843,8 @@ function renderSidebar(articles) {
   return `
     <aside class="landing-sidebar">
       ${renderWeatherWidget()}
-      ${renderLottoWidget()}
       ${renderLatestSidebar(articles)}
+      ${renderLottoWidget()}
     </aside>
   `
 }
