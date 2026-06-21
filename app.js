@@ -1594,24 +1594,13 @@ async function renderAdmin() {
     if (!imagePreviewUrl || !editingArticle) return
 
     try {
-      // Fetch the generated image and convert to base64
-      const resp = await fetch(imagePreviewUrl)
-      if (!resp.ok) throw new Error('Failed to fetch generated image')
-      const blob = await resp.blob()
-
-      // Convert blob to base64
-      const base64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(reader.result)
-        reader.onerror = reject
-        reader.readAsDataURL(blob)
-      })
-
       showToast('⏳ Uploading image…', 'info')
 
+      // Pass the image URL directly — the Edge Function fetches it server-side
+      // This avoids the 1MB request body limit on Supabase Functions
       const result = await adminOperation('upload-image', {
         article_id: editingArticle.id,
-        base64,
+        image_url: imagePreviewUrl,
       })
 
       uploadedImageUrl = result.url

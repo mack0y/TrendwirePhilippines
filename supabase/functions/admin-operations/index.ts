@@ -96,16 +96,33 @@ serve(async (req) => {
       }
 
       case 'upload-image': {
-        const { article_id, base64 } = payload
-        const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/)
-        if (!matches || !matches[2]) throw new Error('Invalid base64 image data')
+        const { article_id, image_url, base64 } = payload
 
-        const contentType = matches[1]
-        const base64Data = matches[2]
-        const binaryStr = atob(base64Data)
-        const bytes = new Uint8Array(binaryStr.length)
-        for (let i = 0; i < binaryStr.length; i++) {
-          bytes[i] = binaryStr.charCodeAt(i)
+        // Support both: pass image URL (Edge Function fetches it) or pass base64 directly
+        let bytes: Uint8Array
+        let contentType = 'image/jpeg'
+
+        if (image_url) {
+          // Fetch from URL server-side — avoids request body size limits
+          const imgResp = await fetch(image_url)
+          if (!imgResp.ok) throw new Error('Failed to fetch image from URL')
+          const imgBuffer = await imgResp.arrayBuffer()
+          bytes = new Uint8Array(imgBuffer)
+          const ct = imgResp.headers.get('content-type') || ''
+          if (ct) contentType = ct
+        } else if (base64) {
+          // Legacy: base64 data passed from the browser
+          const matches = base64.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/)
+          if (!matches || !matches[2]) throw new Error('Invalid base64 image data')
+          contentType = matches[1]
+          const base64Data = matches[2]
+          const binaryStr = atob(base64Data)
+          bytes = new Uint8Array(binaryStr.length)
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i)
+          }
+        } else {
+          throw new Error('Either image_url or base64 is required')
         }
 
         // Ensure bucket exists (idempotent)
@@ -117,7 +134,7 @@ serve(async (req) => {
           })
         }
 
-        const ext = contentType === 'image/png' ? 'png' : 'jpg'
+        const ext = contentType.includes('png') ? 'png' : 'jpg'
         const path = `${article_id}/${Date.now()}.${ext}`
 
         const { error: uploadError } = await sb.storage
