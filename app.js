@@ -201,6 +201,7 @@ function updateSeoForArticle(article) {
     'url': imageUrl,
     'width': 1200,
     'height': 630,
+    'caption': article.summary || article.title,
   }
 
   injectLd('ld-article', {
@@ -234,13 +235,6 @@ function updateSeoForArticle(article) {
       name: SITE_NAME,
     },
     isAccessibleForFree: true,
-    hasPart: tags.length ? tags.map(function(tag, i) {
-      return {
-        '@type': 'Clip',
-        'name': tag,
-        'position': i + 1,
-      }
-    }) : undefined,
   })
 
   // Breadcrumb schema

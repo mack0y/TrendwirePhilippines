@@ -1,7 +1,6 @@
 name: Generate Sitemap
 
 on:
-  # Run after articles are published
   workflow_dispatch:
   schedule:
     # Daily at 3AM PHT (7PM UTC)
@@ -16,7 +15,7 @@ jobs:
       - name: Generate sitemap.xml
         run: |
           BASE_URL="https://mack0y.github.io/TrendwirePhilippines"
-          cat > sitemap.xml << 'EOF'
+          cat > sitemap.xml << EOF
           <?xml version="1.0" encoding="UTF-8"?>
           <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
             <url>
@@ -27,9 +26,10 @@ jobs:
           </urlset>
           EOF
 
-      - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: .
-          keep_files: true
+      - name: Commit sitemap.xml to main branch
+        run: |
+          git config user.name "TrendWire Bot"
+          git config user.email "bot@trendwire.ph"
+          git add sitemap.xml
+          git diff --staged --quiet || git commit -m "Update sitemap.xml [automated]"
+          git push origin main
