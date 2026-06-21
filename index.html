@@ -3,19 +3,74 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TrendWire Philippines</title>
-  <meta name="description" content="Trending stories and news from across the Philippines">
-  <meta property="og:title" content="TrendWire Philippines">
-  <meta property="og:description" content="Trending stories and news from across the Philippines">
+  <title>TrendWire Philippines — Trending Stories & News</title>
+  <meta name="description" content="Trending stories and news from across the Philippines. Stay informed with the latest trending topics, breaking news, and in-depth articles on politics, sports, economy, and more.">
+  <meta name="keywords" content="Philippines news, trending PH, Filipino news, trending topics Philippines, Pinoy news, TrendWire PH">
+
+  <!-- Open Graph -->
+  <meta property="og:title" content="TrendWire Philippines — Trending Stories & News">
+  <meta property="og:description" content="Trending stories and news from across the Philippines. Stay informed with the latest trending topics and in-depth articles.">
   <meta property="og:type" content="website">
+  <meta property="og:url" content="https://mack0y.github.io/TrendwirePhilippines/">
+  <meta property="og:site_name" content="TrendWire Philippines">
+  <meta property="og:locale" content="en_PH">
+  <meta property="og:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 630'%3E%3Crect width='1200' height='630' fill='%23CE1126'/%3E%3Ctext x='600' y='280' font-size='160' text-anchor='middle' dominant-baseline='middle'%3E🇵🇭%3C/text%3E%3Ctext x='600' y='400' font-size='48' font-family='sans-serif' font-weight='bold' text-anchor='middle' fill='white'%3ETrendWire PH%3C/text%3E%3Ctext x='600' y='460' font-size='24' font-family='sans-serif' text-anchor='middle' fill='rgba(255,255,255,0.8)'%3EStories that move the nation%3C/text%3E%3C/svg%3E">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:type" content="image/svg+xml">
+
+  <!-- Twitter Cards -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:site" content="@TrendWirePH">
+  <meta name="twitter:creator" content="@TrendWirePH">
+  <meta name="twitter:title" content="TrendWire Philippines — Trending Stories & News">
+  <meta name="twitter:description" content="Trending stories and news from across the Philippines.">
+  <meta name="twitter:image" content="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 630'%3E%3Crect width='1200' height='630' fill='%23CE1126'/%3E%3Ctext x='600' y='280' font-size='160' text-anchor='middle' dominant-baseline='middle'%3E🇵🇭%3C/text%3E%3Ctext x='600' y='400' font-size='48' font-family='sans-serif' font-weight='bold' text-anchor='middle' fill='white'%3ETrendWire PH%3C/text%3E%3Ctext x='600' y='460' font-size='24' font-family='sans-serif' text-anchor='middle' fill='rgba(255,255,255,0.8)'%3EStories that move the nation%3C/text%3E%3C/svg%3E">
+
   <meta name="theme-color" id="theme-color" content="#CE1126">
-  <link rel="stylesheet" href="style.css">
+  <link rel="canonical" href="https://mack0y.github.io/TrendwirePhilippines/">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇵🇭</text></svg>">
+  <link rel="stylesheet" href="style.css">
+
+  <!-- JSON-LD Organization Schema (default) -->
+  <script type="application/ld+json" id="ld-org">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "TrendWire Philippines",
+    "url": "https://mack0y.github.io/TrendwirePhilippines/",
+    "logo": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Ccircle cx='100' cy='100' r='95' fill='%23CE1126'/%3E%3Ctext x='100' y='120' font-size='64' text-anchor='middle' dominant-baseline='middle'%3E🇵🇭%3C/text%3E%3C/svg%3E",
+    "description": "Automated news publishing platform covering trending topics from across the Philippines.",
+    "foundingDate": "2026",
+    "address": {
+      "@type": "PostalAddress",
+      "addressCountry": "PH"
+    }
+  }
+  </script>
+
+  <!-- JSON-LD Website Schema (default) -->
+  <script type="application/ld+json" id="ld-website">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "TrendWire Philippines",
+    "url": "https://mack0y.github.io/TrendwirePhilippines/",
+    "potentialAction": {
+      "@type": "SearchAction",
+      "target": {
+        "@type": "EntryPoint",
+        "urlTemplate": "https://mack0y.github.io/TrendwirePhilippines/#/search?q={search_term_string}"
+      },
+      "query-input": "required name=search_term_string"
+    }
+  }
+  </script>
 </head>
 <body>
   <header class="site-header">
     <div class="header-inner">
-      <button class="logo" onclick="navigate('')">
+      <button class="logo" onclick="navigate('/')">
         <span class="flag">🇵🇭</span>
         <span>TrendWire <span class="accent">PH</span></span>
       </button>
@@ -41,6 +96,6 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

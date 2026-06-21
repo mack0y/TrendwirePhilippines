@@ -1,5 +1,28 @@
 /* ===== TrendWire Philippines — App ===== */
 
+// ── SEO Config ──────────────────────────────
+const SITE_URL = 'https://mack0y.github.io/TrendwirePhilippines'
+const SITE_NAME = 'TrendWire Philippines'
+const BASE_PATH = '/TrendwirePhilippines'
+const DEFAULT_OG_IMAGE = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630"><rect width="1200" height="630" fill="%23CE1126"/><text x="600" y="280" font-size="160" text-anchor="middle" dominant-baseline="middle">&#x1F1F5;&#x1F1ED;</text><text x="600" y="400" font-size="48" font-family="sans-serif" font-weight="bold" text-anchor="middle" fill="white">TrendWire PH</text><text x="600" y="460" font-size="24" font-family="sans-serif" text-anchor="middle" fill="rgba(255,255,255,0.8)">Stories that move the nation</text></svg>')
+
+// ── 404 redirect from GitHub Pages ─────────
+;(function() {
+  var redirect = sessionStorage.redirect
+  if (redirect) {
+    delete sessionStorage.redirect
+    var path = redirect.replace(BASE_PATH, '') || '/'
+    history.replaceState(null, '', BASE_PATH + path)
+  }
+  // Redirect legacy hash URLs (e.g. #/article/slug) to clean paths
+  var hash = location.hash
+  if (hash && hash.startsWith('#/')) {
+    var cleanPath = hash.replace('#/', '') || '/'
+    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath
+    history.replaceState(null, '', BASE_PATH + cleanPath)
+  }
+})()
+
 // ── Supabase Config ──────────────────────────────
 const SUPABASE_URL = 'https://nvxykufajzppjtkmbtte.supabase.co'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52eHlrdWZhanpwcGp0a21idHRlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzNTMyMDgsImV4cCI6MjA5NjkyOTIwOH0.k4iu6e3k1Me-Nu5R5xsX4KiJNxfJ6S-THBhMNRyF7j0'
@@ -19,10 +42,8 @@ window.toggleDarkMode = function () {
   darkMode = !darkMode
   document.documentElement.classList.toggle('dark', darkMode)
   localStorage.setItem('tw-dark', darkMode)
-  // Update theme-color meta tag
   const meta = document.getElementById('theme-color')
   if (meta) meta.content = darkMode ? '#1a1a2e' : '#CE1126'
-  // Update toggle icon
   const icon = document.querySelector('.dark-toggle-icon')
   if (icon) icon.textContent = darkMode ? '☀️' : '🌙'
 }
@@ -38,18 +59,18 @@ try {
   console.error('Failed to init Supabase:', e)
 }
 
-// ── Router ────────────────────────────────────────
+// ── Router (pushState-based) ──────────────────────
 function handleRoute() {
-  const hash = window.location.hash.replace(/^#\//, '') || ''
-  if (!hash) {
+  const path = location.pathname.replace(BASE_PATH, '') || '/'
+  if (path === '/' || path === '') {
     currentRoute = 'list'
     currentSlug = null
     renderList()
-  } else if (hash.startsWith('article/')) {
+  } else if (path.startsWith('/article/')) {
     currentRoute = 'article'
-    currentSlug = hash.replace('article/', '')
+    currentSlug = path.replace('/article/', '')
     renderArticle(currentSlug)
-  } else if (hash === 'admin') {
+  } else if (path === '/admin') {
     currentRoute = 'admin'
     currentSlug = null
     renderAdmin()
@@ -60,10 +81,142 @@ function handleRoute() {
   }
 }
 
-window.addEventListener('hashchange', handleRoute)
+window.addEventListener('popstate', handleRoute)
 
 function navigate(path) {
-  window.location.hash = '#/' + path
+  const url = BASE_PATH + path
+  history.pushState(null, '', url)
+  handleRoute()
+}
+
+// ── SEO Helpers ───────────────────────────────────
+
+function setMetaTags(opts) {
+  const title = opts.title || SITE_NAME
+  const desc = opts.description || 'Trending stories and news from across the Philippines.'
+  const url = opts.url || SITE_URL + '/'
+  const image = opts.image || DEFAULT_OG_IMAGE
+
+  document.title = title
+
+  setMeta('description', desc)
+  setMeta('keywords', opts.keywords || 'Philippines news, trending PH, Filipino news')
+
+  setMeta('og:title', title)
+  setMeta('og:description', desc)
+  setMeta('og:url', url)
+  setMeta('og:image', image)
+  setMeta('og:type', opts.ogType || 'website')
+  setMeta('og:site_name', SITE_NAME)
+
+  setMeta('twitter:card', opts.twitterCard || 'summary_large_image')
+  setMeta('twitter:title', title)
+  setMeta('twitter:description', desc)
+  setMeta('twitter:image', image)
+
+  // Canonical
+  let link = document.querySelector('link[rel="canonical"]')
+  if (!link) {
+    link = document.createElement('link')
+    link.rel = 'canonical'
+    document.head.appendChild(link)
+  }
+  link.href = url
+}
+
+function setMeta(name, content) {
+  if (!content) return
+  let el = document.querySelector('meta[name="' + name + '"], meta[property="' + name + '"]')
+  if (!el) {
+    el = document.createElement('meta')
+    if (name.startsWith('og:') || name.startsWith('twitter:')) {
+      el.setAttribute('property', name)
+    } else {
+      el.setAttribute('name', name)
+    }
+    document.head.appendChild(el)
+  }
+  el.setAttribute('content', content)
+}
+
+function injectLd(id, json) {
+  let script = document.getElementById(id)
+  if (!script) {
+    script = document.createElement('script')
+    script.type = 'application/ld+json'
+    script.id = id
+    document.head.appendChild(script)
+  }
+  script.textContent = JSON.stringify(json)
+}
+
+function removeLd(id) {
+  var el = document.getElementById(id)
+  if (el) el.remove()
+}
+
+function updateSeoForList() {
+  setMetaTags({
+    title: SITE_NAME + ' — Trending Stories & News',
+    description: 'Trending stories and news from across the Philippines. Stay informed with the latest trending topics, breaking news, and in-depth articles on politics, sports, economy, and more.',
+    url: SITE_URL + '/',
+    keywords: 'Philippines news, trending PH, Filipino news, Pinoy news, TrendWire PH',
+  })
+  // Remove article-specific schema
+  removeLd('ld-article')
+  removeLd('ld-breadcrumb')
+}
+
+function updateSeoForArticle(article) {
+  const articleUrl = SITE_URL + '/article/' + article.slug
+  const imageUrl = article.image_url || DEFAULT_OG_IMAGE
+
+  setMetaTags({
+    title: article.title + ' — ' + SITE_NAME,
+    description: article.summary || article.seo_description || article.title,
+    url: articleUrl,
+    image: imageUrl,
+    ogType: 'article',
+    keywords: (article.tags || []).join(', '),
+  })
+
+  // Article schema
+  injectLd('ld-article', {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.title,
+    description: article.summary || article.seo_description || '',
+    image: imageUrl,
+    datePublished: article.published_at || article.created_at,
+    dateModified: article.updated_at || article.published_at || article.created_at,
+    author: {
+      '@type': 'Organization',
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: SITE_NAME,
+      url: SITE_URL,
+    },
+    mainEntityOfPage: {
+      '@type': 'WebPage',
+      '@id': articleUrl,
+    },
+    articleSection: article.category || 'General',
+    keywords: (article.tags || []).join(', '),
+  })
+
+  // Breadcrumb schema
+  injectLd('ld-breadcrumb', {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: SITE_URL + '/' },
+      { '@type': 'ListItem', position: 2, name: article.category || 'General', item: SITE_URL + '/?category=' + (article.category || 'General') },
+      { '@type': 'ListItem', position: 3, name: article.title, item: articleUrl },
+    ],
+  })
 }
 
 // ── API ───────────────────────────────────────────
@@ -252,6 +405,9 @@ function renderError(message) {
 async function renderList() {
   const app = document.getElementById('app')
 
+  // Reset SEO for homepage
+  updateSeoForList()
+
   // Update dark toggle icon in header
   const icon = document.querySelector('.dark-toggle-icon')
   if (icon) icon.textContent = darkMode ? '☀️' : '🌙'
@@ -352,7 +508,7 @@ async function renderList() {
       : `background: ${heroCat.bg};`
 
     const heroHtml = `
-      <div class="hero-card" onclick="navigate('article/${hero.slug}')">
+      <div class="hero-card" onclick="navigate('/article/${hero.slug}')">
         <div class="hero-bg" style="${heroImgStyle} background-size: cover; background-position: center;">
           <div class="hero-overlay"></div>
           <div class="hero-content">
@@ -379,7 +535,7 @@ async function renderList() {
             : `background: ${cat.bg};`
           return `
             <div class="article-card" data-category="${a.category || 'General'}"
-                 onclick="navigate('article/${a.slug}')">
+                 onclick="navigate('/article/${a.slug}')">
               <div class="card-img" style="${imgStyle} background-size: cover; background-position: center;">
                 ${!a.image_url ? `<span class="card-img-emoji">${cat.emoji}</span>` : ''}
               </div>
@@ -439,6 +595,16 @@ window.__catFilter = function (cat) {
 // ── Render: Admin Dashboard ───────────────────────
 async function renderAdmin() {
   const app = document.getElementById('app')
+
+  // Set SEO for admin (noindex to keep it out of search)
+  setMetaTags({
+    title: 'Admin Dashboard — ' + SITE_NAME,
+    description: 'TrendWire Philippines admin dashboard for managing trends and articles.',
+    url: SITE_URL + '/admin',
+  })
+  removeLd('ld-article')
+  removeLd('ld-breadcrumb')
+
   let trends = []
   let generating = null
   let fetching = false
@@ -890,7 +1056,7 @@ async function renderAdmin() {
 
     // Toolbar & header (always visible)
     const headerHtml = `
-      <button class="back-btn" onclick="navigate('')">← Back to articles</button>
+      <button class="back-btn" onclick="navigate('/')">← Back to articles</button>
       <div class="admin-header">
         <h1 class="page-title">🛠️ Admin Dashboard</h1>
         <p class="page-subtitle">Fetch trending topics from Google Trends PH and generate articles</p>
@@ -956,7 +1122,7 @@ async function renderAdmin() {
               <span class="article-manage-title ${isDraft ? 'draft-title' : ''}" style="cursor:pointer" onclick="renderAdmin.__openArticle('${a.id}')">
                 ${escHtml(a.title)}
               </span>
-              ${!isDraft ? `<a href="#/article/${a.slug}" target="_blank" class="manage-view-link" title="View published article">↗</a>` : ''}
+              ${!isDraft ? `<a href="${BASE_PATH}/article/${a.slug}" target="_blank" class="manage-view-link" title="View published article">↗</a>` : ''}
               <div class="article-manage-meta">
                 <span class="category-badge-sm ${a.category || 'General'}">${a.category || 'General'}</span>
                 <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
@@ -1042,7 +1208,7 @@ async function renderAdmin() {
           <p class="modal-article-title">${escHtml(publishedResult.title)}</p>
           <p class="modal-subtitle">Your article is now live on TrendWire Philippines.</p>
           <div class="modal-actions">
-            <a class="modal-btn modal-btn-primary" href="#/article/${publishedResult.slug}" target="_blank">👁️ View Article</a>
+            <a class="modal-btn modal-btn-primary" href="${BASE_PATH}/article/${publishedResult.slug}" target="_blank">👁️ View Article</a>
             <button class="modal-btn modal-btn-secondary" onclick="renderAdmin.__publishContinueEdit()">✏️ Continue Editing</button>
             <button class="modal-btn modal-btn-ghost" onclick="renderAdmin.__publishClose()">Close</button>
           </div>
@@ -1370,23 +1536,26 @@ async function renderArticle(slug) {
             <div class="icon">🔍</div>
             <h2>Article not found</h2>
             <p>This article may have been removed or is no longer available.</p>
-            <button class="retry-btn" onclick="navigate('')">Back to articles</button>
+            <button class="retry-btn" onclick="navigate('/')">Back to articles</button>
           </div>
         </div>
       `
       return
     }
 
+    // Update SEO for this article
+    updateSeoForArticle(article)
+
     const content = article.content || ''
     const renderedContent = renderMarkdown(content)
 
-    const pageUrl = encodeURIComponent(window.location.href)
-    const shareText = encodeURIComponent(`${article.title} — TrendWire Philippines`)
+    const pageUrl = encodeURIComponent(SITE_URL + '/article/' + article.slug)
+    const shareText = encodeURIComponent(`${article.title} — ${SITE_NAME}`)
 
     app.innerHTML = `
       <div class="container">
         <div class="article-detail">
-          <button class="back-btn" onclick="navigate('')">← Back to articles</button>
+          <button class="back-btn" onclick="navigate('/')">← Back to articles</button>
 
           <div class="article-header">
             <span class="category-badge">${article.category || 'General'}</span>
@@ -1400,7 +1569,7 @@ async function renderArticle(slug) {
 
           <div class="featured-image">
             ${article.image_url
-              ? `<img src="${article.image_url}" alt="${article.title}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)">`
+              ? `<img src="${article.image_url}" alt="${article.title} — ${SITE_NAME}" style="width:100%;height:100%;object-fit:cover;border-radius:var(--radius)">`
               : article.image_prompt
                 ? '📸 ' + article.image_prompt.slice(0, 80) + '…'
                 : '📰 No image available'}

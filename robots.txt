@@ -1,0 +1,5 @@
+# TrendWire Philippines — Robots
+User-agent: *
+Allow: /
+
+Sitemap: https://mack0y.github.io/TrendwirePhilippines/sitemap.xml

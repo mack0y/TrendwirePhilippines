@@ -1,0 +1,42 @@
+name: 🔍 Generate SEO Assets
+
+on:
+  schedule:
+    # Every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install supabase
+
+      - name: Generate sitemap.xml
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SITE_URL: https://mack0y.github.io/TrendwirePhilippines
+        run: python scripts/generate-sitemap.py
+
+      - name: Generate feed.xml
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SITE_URL: https://mack0y.github.io/TrendwirePhilippines
+        run: python scripts/generate-feed.py
+
+      - name: Commit & push SEO assets
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "🔍 Update sitemap.xml and feed.xml"
+          branch: main
