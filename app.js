@@ -1187,8 +1187,10 @@ async function renderAdmin() {
 
     var enhancedPrompt = enhanceImagePrompt(rawPrompt)
     // Use Flux model for best photorealistic news imagery
+    // _= timestamp cache-buster ensures regenerate actually produces a new image
     var url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(enhancedPrompt) +
-      '?width=1280&height=720&model=flux&nofeed=true&seed=' + Math.floor(Math.random() * 2147483647)
+      '?width=1280&height=720&model=flux&nofeed=true&seed=' + Math.floor(Math.random() * 2147483647) +
+      '&_=' + Date.now()
 
     // Preload the image
     var img = new Image()
@@ -1200,7 +1202,8 @@ async function renderAdmin() {
     img.onerror = function() {
       // Retry without style modifiers in case the enhanced prompt caused issues
       var fallbackUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(rawPrompt.slice(0, 100)) +
-        '?width=1280&height=720&nofeed=true&seed=' + Math.floor(Math.random() * 2147483647)
+        '?width=1280&height=720&nofeed=true' +
+        '&_=' + Date.now()
       var fallbackImg = new Image()
       fallbackImg.onload = function() {
         imagePreviewUrl = fallbackUrl
