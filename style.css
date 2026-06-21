@@ -697,6 +697,31 @@ body {
   padding: 4px 0;
 }
 
+/* Trend status badges (draft indicator on trend cards) */
+.trend-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.trend-status-published {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+.trend-status-draft {
+  background: #fff8e1;
+  color: #f57f17;
+}
+
 .trend-list {
   display: flex;
   flex-direction: column;

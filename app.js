@@ -313,7 +313,7 @@ async function renderAdmin() {
     try {
       const { data, error } = await sb
         .from('articles')
-        .select('id, title, slug, category, status, published_at, created_at, summary')
+        .select('id, title, slug, category, status, published_at, created_at, summary, trend_id')
         .order('created_at', { ascending: false })
         .limit(50)
       if (error) throw error
@@ -828,16 +828,30 @@ async function renderAdmin() {
       articlesHtml = `<p class="admin-empty-note">No articles yet. Generate one from a trend above.</p>`
     }
 
+    // Build lookup of which trends already have articles
+    const trendArticleMap = {}
+    allArticles.forEach(a => {
+      if (a.trend_id) {
+        trendArticleMap[a.trend_id] = a
+      }
+    })
+
     const trendCards = filteredTrends.length
       ? (trendSearch && trends.length > filteredTrends.length
           ? `<p class="trend-search-count">${filteredTrends.length} of ${trends.length} trends match</p>`
           : ''
-        ) + filteredTrends.map(t => `
+        ) + filteredTrends.map(t => {
+          const existing = trendArticleMap[t.id]
+          const statusBadge = existing
+            ? `<span class="trend-status-badge trend-status-${existing.status}">${existing.status === 'published' ? '📢' : '📝'} ${existing.status}</span>`
+            : ''
+          return `
         <div class="trend-card ${hasEditor ? 'trend-card-compact' : ''}" data-category="${t.category || 'General'}">
           <div class="trend-info">
             <div class="trend-top">
               <span class="category-badge">${t.category || 'General'}</span>
               ${t.impact_score != null ? `<span class="impact-badge impact-${t.impact_score >= 70 ? 'high' : t.impact_score >= 40 ? 'medium' : 'low'}">${t.impact_score >= 70 ? '🔥' : t.impact_score >= 40 ? '📈' : '📊'} ${t.impact_score}</span>` : ''}
+              ${statusBadge}
             </div>
             <h3>${t.title}</h3>
             ${t.summary ? `<p class="trend-summary">${t.summary}</p>` : ''}
@@ -845,10 +859,10 @@ async function renderAdmin() {
           </div>
           <button class="generate-btn" onclick="renderAdmin.__handleGenerate('${t.id}')"
                   ${generating === t.id ? 'disabled' : ''}>
-            ${generating === t.id ? '⏳ Generating…' : '✏️ Generate'}
+            ${generating === t.id ? '⏳ Generating…' : existing ? '✅ Regenerate' : '✏️ Generate'}
           </button>
         </div>
-      `).join('')
+      `}).join('')
       : `<div class="empty-state"><div class="icon">${trendSearch ? '🔍' : '📊'}</div><h2>${trendSearch ? 'No matching trends' : 'No trends yet'}</h2><p>${trendSearch ? `No trends match your search. Try different keywords.` : 'Click "Fetch Latest PH Trends" to pull trending topics from Google Trends Philippines.'}</p></div>`
 
     // ── Editor section ──
