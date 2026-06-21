@@ -550,10 +550,6 @@ body {
   transition: transform 0.5s ease;
 }
 
-.article-card:hover .card-img img {
-  transform: scale(1.05);
-}
-
 .card-img-emoji {
   font-size: 40px;
   opacity: 0.6;
@@ -949,15 +945,6 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.article-footer .tag {
-  background: var(--bg);
-  color: var(--text-secondary);
-  font-size: 12px;
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-weight: 500;
 }
 
 /* ===== Share Bar ===== */
