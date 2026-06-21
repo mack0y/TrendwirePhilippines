@@ -32,6 +32,7 @@ let articles = []
 let currentRoute = 'list'
 let currentSlug = null
 let categoryFilter = ''
+let tagFilter = ''
 let darkMode = localStorage.getItem('tw-dark') === 'true'
 let loadedCount = 0
 let isLoadingMore = false
@@ -67,6 +68,15 @@ try {
 // ── Router (pushState-based) ──────────────────────
 function handleRoute() {
   const path = location.pathname.replace(BASE_PATH, '') || '/'
+  // Parse query params for tag/category filters
+  var params = new URLSearchParams(location.search)
+  var tagParam = params.get('tag') || ''
+  var catParam = params.get('category') || ''
+  tagFilter = tagParam
+  if (catParam) {
+    categoryFilter = catParam
+  }
+  
   if (path === '/' || path === '') {
     currentRoute = 'list'
     currentSlug = null
@@ -173,6 +183,30 @@ function updateSeoForList() {
   removeLd('ld-breadcrumb')
 }
 
+function renderRelatedSection(relatedArticles) {
+  if (!relatedArticles || !relatedArticles.length) return ''
+  var items = relatedArticles.map(function(a) {
+    var articleUrl = BASE_PATH + '/article/' + a.slug
+    return `
+      <div class="related-card">
+        <a href="${articleUrl}" onclick="event.preventDefault();navigate('/article/${a.slug}')">
+          ${a.image_url ? `<div class="related-card-img"><img src="${a.image_url}" alt="${escHtml(a.title)}" loading="lazy"></div>` : ''}
+          <div class="related-card-body">
+            <span class="related-card-category">${a.category || 'General'}</span>
+            <h3 class="related-card-title">${escHtml(a.title)}</h3>
+          </div>
+        </a>
+      </div>
+    `
+  }).join('')
+  return `
+    <div class="related-section">
+      <div class="related-section-header">More in ${escHtml(relatedArticles[0].category || 'General')}</div>
+      <div class="related-grid">${items}</div>
+    </div>
+  `
+}
+
 function updateSeoForArticle(article) {
   const articleUrl = SITE_URL + '/article/' + article.slug
   const imageUrl = article.image_url || DEFAULT_OG_IMAGE
@@ -276,6 +310,21 @@ async function fetchArticleBySlug(slug) {
 
   if (error) throw error
   return data
+}
+
+async function fetchRelatedArticles(category, excludeSlug, limit) {
+  if (!sb) return []
+  limit = limit || 4
+  var { data, error } = await sb
+    .from('articles')
+    .select('id, title, slug, summary, category, tags, published_at, created_at, image_url')
+    .eq('status', 'published')
+    .eq('category', category)
+    .neq('slug', excludeSlug)
+    .order('published_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data || []
 }
 
 // ── Admin API ─────────────────────────────────────
@@ -848,13 +897,16 @@ function renderLatestSidebar(articles) {
   if (!articles || !articles.length) return ''
   var top = articles.slice(0, 8)
   var items = top.map(function(a, i) {
+    var articleUrl = BASE_PATH + '/article/' + a.slug
     return `
-      <li class="trending-sidebar-item" onclick="navigate('/article/${a.slug}')">
-        <span class="trending-rank">${i + 1}</span>
-        <div>
-          <div class="trending-sidebar-title">${escHtml(a.title)}</div>
-          <div class="trending-sidebar-score">📅 ${formatDate(a.published_at || a.created_at)} · ${a.category || 'General'}</div>
-        </div>
+      <li class="trending-sidebar-item">
+        <a href="${articleUrl}" class="sidebar-item-link" onclick="event.preventDefault();navigate('/article/${a.slug}')">
+          <span class="trending-rank">${i + 1}</span>
+          <div>
+            <div class="trending-sidebar-title">${escHtml(a.title)}</div>
+            <div class="trending-sidebar-score">📅 ${formatDate(a.published_at || a.created_at)} · ${a.category || 'General'}</div>
+          </div>
+        </a>
       </li>
     `
   }).join('')
@@ -895,6 +947,14 @@ function renderCategoryTabs(categories) {
 
 window.__catFilterTab = function(cat) {
   categoryFilter = cat
+  tagFilter = ''
+  renderArticlesGrid()
+}
+
+window.__clearTagFilter = function() {
+  tagFilter = ''
+  var url = BASE_PATH + '/'
+  history.pushState(null, '', url)
   renderArticlesGrid()
 }
 
@@ -917,36 +977,54 @@ function renderArticlesGrid() {
   var gridContainer = app.querySelector('#article-grid-container')
   if (!gridContainer) return
   
-  var filtered = categoryFilter
-    ? articles.filter(function(a) { return (a.category || 'General') === categoryFilter })
-    : articles
+  // Filter by category and/or tag
+  var filtered = articles
+  if (categoryFilter) {
+    filtered = filtered.filter(function(a) { return (a.category || 'General') === categoryFilter })
+  }
+  if (tagFilter) {
+    filtered = filtered.filter(function(a) {
+      var tags = a.tags || []
+      return tags.some(function(t) { return t.toLowerCase() === tagFilter.toLowerCase() })
+    })
+  }
   
   var displayArticles = filtered.slice(0, loadedCount)
   
+  // Build filter description for empty state
+  var filterDesc = ''
+  if (tagFilter) filterDesc = ' with tag "' + escHtml(tagFilter) + '"'
+  else if (categoryFilter) filterDesc = ' in ' + escHtml(categoryFilter)
+  
   if (!displayArticles.length) {
-    gridContainer.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><h2>No articles in this category</h2><p>Try selecting a different category.</p></div>'
+    gridContainer.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><h2>No articles' + filterDesc + '</h2><p>Try a different filter.</p>' + (tagFilter ? '<button class="retry-btn" onclick="window.__clearTagFilter()">Clear tag filter</button>' : '') + '</div>'
     return
   }
   
   var catColors = CAT_COLORS
   
-  var gridHtml = '<div class="article-grid">'
+  // Show active filter notice
+  var filterNotice = tagFilter ? '<div class="filter-notice">🔍 Showing articles tagged: <strong>' + escHtml(tagFilter) + '</strong> <button class="filter-clear" onclick="window.__clearTagFilter()">✕ Clear</button></div>' : ''
+  
+  var gridHtml = filterNotice + '<div class="article-grid">'
   displayArticles.forEach(function(a, i) {
     var cat = catColors[a.category] || catColors.General
     var isFeatured = i === 0 && loadedCount > 1
     var imgHtml = a.image_url
       ? '<img src="' + a.image_url + '" alt="' + escHtml(a.title) + '" loading="lazy">'
       : '<span class="card-img-emoji">' + cat.emoji + '</span>'
+    var articleUrl = BASE_PATH + '/article/' + a.slug
     
-    gridHtml += '<div class="article-card' + (isFeatured ? ' card-featured' : '') + '" data-category="' + (a.category || 'General') + '" onclick="navigate(\'/article/' + a.slug + '\')">'
+    gridHtml += '<div class="article-card' + (isFeatured ? ' card-featured' : '') + '" data-category="' + (a.category || 'General') + '">'
+    gridHtml += '<a href="' + articleUrl + '" class="card-link" onclick="event.preventDefault();navigate(\'/article/' + a.slug + '\')">'
     gridHtml += '<div class="card-img" style="background:' + cat.bg + '">' + imgHtml + '</div>'
     gridHtml += '<div class="card-body">'
     gridHtml += '<span class="card-category-badge">' + cat.emoji + ' ' + (a.category || 'General') + '</span>'
     gridHtml += '<h2 class="card-title">' + escHtml(a.title) + '</h2>'
     gridHtml += '<p class="card-summary">' + escHtml(a.summary || '') + '</p>'
     gridHtml += '<div class="card-meta"><span>📅 ' + formatDate(a.published_at || a.created_at) + '</span><span>📖 ' + Math.max(1, Math.ceil((a.summary || '').split(/\s+/).filter(Boolean).length / 50)) + ' min</span></div>'
-    gridHtml += '</div></div>'
-  })
+    gridHtml += '</div>'
+    gridHtml += '</a></div>'
   gridHtml += '</div>'
   
   // Load more button
@@ -1032,20 +1110,23 @@ async function renderList() {
       const imgStyle = a.image_url
         ? `background-image: url(${a.image_url});`
         : `background: ${cat.bg};`
+      const articleUrl = BASE_PATH + '/article/' + a.slug
       return `
-        <div class="hero-slide ${i === 0 ? 'active' : ''}" onclick="navigate('/article/${a.slug}')">
-          <div class="hero-slide-bg" style="${imgStyle} background-size: cover; background-position: center;"></div>
-          <div class="hero-slide-overlay"></div>
-          <div class="hero-slide-content">
-            <span class="hero-slide-category">${cat.emoji} ${a.category || 'General'}</span>
-            <h2 class="hero-slide-title">${escHtml(a.title)}</h2>
-            ${a.summary ? `<p class="hero-slide-summary">${escHtml(a.summary)}</p>` : ''}
-            <div class="hero-slide-meta">
-              <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
-              <span>📖 ${Math.max(1, Math.ceil((a.summary || '').split(/\s+/).filter(Boolean).length / 50))} min read</span>
+        <div class="hero-slide ${i === 0 ? 'active' : ''}">
+          <a href="${articleUrl}" class="hero-slide-link" onclick="event.preventDefault();navigate('/article/${a.slug}')">
+            <div class="hero-slide-bg" style="${imgStyle} background-size: cover; background-position: center;"></div>
+            <div class="hero-slide-overlay"></div>
+            <div class="hero-slide-content">
+              <span class="hero-slide-category">${cat.emoji} ${a.category || 'General'}</span>
+              <h2 class="hero-slide-title">${escHtml(a.title)}</h2>
+              ${a.summary ? `<p class="hero-slide-summary">${escHtml(a.summary)}</p>` : ''}
+              <div class="hero-slide-meta">
+                <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
+                <span>📖 ${Math.max(1, Math.ceil((a.summary || '').split(/\s+/).filter(Boolean).length / 50))} min read</span>
+              </div>
+              <span class="hero-slide-cta">Read Story →</span>
             </div>
-            <span class="hero-slide-cta">Read Story →</span>
-          </div>
+          </a>
         </div>
       `
     }).join('')
@@ -2121,18 +2202,38 @@ async function renderArticle(slug) {
     const pageUrl = encodeURIComponent(SITE_URL + '/article/' + article.slug)
     const shareText = encodeURIComponent(`${article.title} — ${SITE_NAME}`)
 
+    // Fetch related articles (same category, exclude current)
+    var relatedArticles = await fetchRelatedArticles(article.category || 'General', article.slug, 4)
+    var relatedHtml = relatedArticles.length ? renderRelatedSection(relatedArticles) : ''
+
+    var tags = article.tags || []
+    var cat = article.category || 'General'
+    var catSlug = cat.toLowerCase().replace(/\s+/g, '-')
+    var catUrl = BASE_PATH + '/?category=' + encodeURIComponent(cat)
+
     app.innerHTML = `
       <div class="container">
         <div class="article-detail">
+          <!-- Breadcrumb navigation -->
+          <nav class="breadcrumb" aria-label="Breadcrumb">
+            <a href="${BASE_PATH}/" onclick="event.preventDefault();navigate('/')">Home</a>
+            <span class="breadcrumb-sep">›</span>
+            <a href="${catUrl}" onclick="event.preventDefault();navigate('/?category=${encodeURIComponent(cat)}')">${escHtml(cat)}</a>
+            <span class="breadcrumb-sep">›</span>
+            <span class="breadcrumb-current">${escHtml(article.title)}</span>
+          </nav>
+
           <button class="back-btn" onclick="navigate('/')">← Back to articles</button>
 
           <div class="article-header">
-            <span class="category-badge">${article.category || 'General'}</span>
+            <a href="${catUrl}" class="category-link" onclick="event.preventDefault();navigate('/?category=${encodeURIComponent(cat)}')">
+              <span class="category-badge">${cat}</span>
+            </a>
             <h1>${article.title}</h1>
             <div class="meta">
               <span>📅 ${formatDateFull(article.published_at || article.created_at)}</span>
               <span>📖 ${readingTime(content)} min read</span>
-              ${article.tags?.length ? `<span>🏷️ ${article.tags.length} tags</span>` : ''}
+              ${tags.length ? `<span>🏷️ ${tags.length} tags</span>` : ''}
             </div>
           </div>
 
@@ -2170,9 +2271,16 @@ async function renderArticle(slug) {
             </div>
           </div>
 
-          <div class="article-footer">
-            ${(article.tags || []).map(t => `<span class="tag">#${t}</span>`).join('')}
-          </div>
+          <!-- Clickable tags -->
+          ${tags.length ? `<div class="article-footer">
+            ${tags.map(function(t) {
+              var tagUrl = BASE_PATH + '/?tag=' + encodeURIComponent(t)
+              return `<a href="${tagUrl}" class="tag-link" onclick="event.preventDefault();navigate('/?tag=${encodeURIComponent(t)}')">#${escHtml(t)}</a>`
+            }).join('')}
+          </div>` : ''}
+
+          <!-- Related articles section -->
+          ${relatedHtml}
         </div>
       </div>
     `
