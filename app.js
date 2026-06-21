@@ -328,6 +328,33 @@ function fallbackCopy(text) {
   if (btn) showCopiedFeedback(btn)
 }
 
+// ── Weather ────────────────────────────────────────
+let weatherData = null
+let weatherLoading = true
+
+async function fetchWeather() {
+  try {
+    var resp = await fetch('https://wttr.in/Manila?format=j1', {
+      headers: { 'User-Agent': 'TrendWire-Philippines/1.0' },
+    })
+    if (!resp.ok) throw new Error('Weather fetch failed')
+    var json = await resp.json()
+    var cc = json.current_condition[0]
+    weatherData = {
+      temp: cc.temp_C,
+      desc: cc.weatherDesc[0].value,
+      humidity: cc.humidity,
+      wind: cc.windspeedKmph,
+      feelsLike: cc.FeelsLikeC,
+      code: cc.weatherCode,
+    }
+  } catch (e) {
+    console.error('Weather fetch error:', e.message)
+    weatherData = null
+  }
+  weatherLoading = false
+}
+
 // ── Admin / Trend Search ─────────────────────────
 async function fetchFromGoogleTrends() {
   if (!sb) throw new Error('Supabase not initialized')
@@ -579,6 +606,79 @@ async function fetchArticlesRange(from, to) {
   return data || []
 }
 
+// ── Render: Sidebar ─────────────────────────────────
+
+function renderWeatherWidget() {
+  if (weatherLoading) {
+    return '<div class="weather-card"><div class="weather-loading">⏳ Loading weather…</div></div>'
+  }
+  if (!weatherData) {
+    return '<div class="weather-error">🌤️ Weather unavailable</div>'
+  }
+  var emoji = getWeatherEmoji(weatherData.code)
+  return `
+    <div class="weather-card">
+      <div class="weather-header">
+        <span class="weather-label">🌏 Manila, PH</span>
+        <span class="weather-updated">just now</span>
+      </div>
+      <div class="weather-main">
+        <span class="weather-temp">${weatherData.temp}<sup>°C</sup></span>
+        <div class="weather-desc">${emoji} ${escHtml(weatherData.desc)}</div>
+      </div>
+      <div class="weather-details">
+        <span>💧 ${weatherData.humidity}%</span>
+        <span>🌬️ ${weatherData.wind} km/h</span>
+        <span>Feels ${weatherData.feelsLike}°</span>
+      </div>
+    </div>
+  `
+}
+
+function getWeatherEmoji(code) {
+  var n = parseInt(code)
+  if (n >= 200 && n < 300) return '⛈️'  // Thunderstorm
+  if (n >= 300 && n < 400) return '🌦️'  // Drizzle
+  if (n >= 500 && n < 600) return '🌧️'  // Rain
+  if (n >= 600 && n < 700) return '❄️'   // Snow
+  if (n >= 700 && n < 800) return '🌫️'  // Atmosphere (mist, fog)
+  if (n === 800) return '☀️'            // Clear
+  if (n > 800) return '☁️'              // Clouds
+  return '🌤️'                           // Default
+}
+
+function renderTrendingSidebar(trends) {
+  if (!trends || !trends.length) return ''
+  var top = trends.slice(0, 10)
+  var items = top.map(function(t, i) {
+    return `
+      <li class="trending-sidebar-item" onclick="navigate('/admin')" title="Write article about this">
+        <span class="trending-rank">${i + 1}</span>
+        <div>
+          <div class="trending-sidebar-title">${escHtml(t.title)}</div>
+          <div class="trending-sidebar-score">⭐ ${t.impact_score || 'N/A'} · ${t.category || 'General'}</div>
+        </div>
+      </li>
+    `
+  }).join('')
+  return `
+    <div class="trending-sidebar">
+      <div class="trending-sidebar-header">🔥 Trending Now</div>
+      <ol class="trending-sidebar-list">${items}</ol>
+      <a class="trending-sidebar-more" href="javascript:void(0)" onclick="navigate('/admin')">📊 View all trends →</a>
+    </div>
+  `
+}
+
+function renderSidebar(trends) {
+  return `
+    <aside class="landing-sidebar">
+      ${renderWeatherWidget()}
+      ${renderTrendingSidebar(trends)}
+    </aside>
+  `
+}
+
 // ── Render: Category Tabs (separate from main render so we can re-render grid without redoing everything) ──
 
 function renderCategoryTabs(categories) {
@@ -793,17 +893,22 @@ async function renderList() {
     app.innerHTML = `
       ${tickerHtml}
       <div class="container">
-        <div class="landing-header">
-          <div>
-            <h1 class="page-title">Trending Now</h1>
-            <p class="page-subtitle">Latest stories from across the Philippines</p>
+        <div class="landing-layout">
+          <div class="landing-main">
+            <div class="landing-header">
+              <div>
+                <h1 class="page-title">Trending Now</h1>
+                <p class="page-subtitle">Latest stories from across the Philippines</p>
+              </div>
+              <div class="landing-article-count">${filtered.length} article${filtered.length !== 1 ? 's' : ''}</div>
+            </div>
+            ${heroHtml}
+            <div class="section-label">Latest Stories</div>
+            ${tabsHtml}
+            <div id="article-grid-container"></div>
           </div>
-          <div class="landing-article-count">${filtered.length} article${filtered.length !== 1 ? 's' : ''}</div>
+          ${renderSidebar(trends)}
         </div>
-        ${heroHtml}
-        <div class="section-label">Latest Stories</div>
-        ${tabsHtml}
-        <div id="article-grid-container"></div>
       </div>
     `
     
@@ -1897,4 +2002,11 @@ async function renderArticle(slug) {
 // ── Boot ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   handleRoute()
+  // Fetch weather in background (sidebar will show loading until it arrives)
+  fetchWeather().then(function() {
+    // Re-render if we're on the list page to show weather
+    if (currentRoute === 'list') {
+      renderList()
+    }
+  })
 })
