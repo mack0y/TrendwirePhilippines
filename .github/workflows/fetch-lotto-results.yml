@@ -1,0 +1,25 @@
+name: Fetch PCSO Lotto Results
+on:
+  schedule:
+    # Every hour from 6AM to 2PM UTC (covers all PH draw times + buffer)
+    - cron: '0 6-14 * * *'
+  workflow_dispatch:  # Manual trigger
+
+jobs:
+  fetch-lotto:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: pip install requests supabase
+
+      - name: Run lotto results scraper
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python scripts/fetch-lotto-results.py

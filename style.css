@@ -1659,6 +1659,114 @@ body {
   background: var(--bg);
 }
 
+/* ===== Lotto Results Widget ===== */
+.lotto-card {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.lotto-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 800;
+  color: white;
+  background: linear-gradient(135deg, #e53935, #c62828);
+}
+
+.lotto-date {
+  font-size: 10px;
+  opacity: 0.8;
+  font-weight: 600;
+}
+
+.lotto-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.lotto-item {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+  transition: background var(--transition);
+}
+
+.lotto-item:last-child {
+  border-bottom: none;
+}
+
+.lotto-item:hover {
+  background: var(--bg);
+}
+
+.lotto-game-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 3px;
+}
+
+.lotto-game-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.lotto-draw-time {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 1px 6px;
+  border-radius: 8px;
+}
+
+.lotto-numbers {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--red);
+  letter-spacing: 2px;
+  font-family: 'Courier New', monospace;
+}
+
+.lotto-jackpot {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-top: 2px;
+}
+
+.dark .lotto-jackpot {
+  color: #ffd54f;
+}
+
+.lotto-loading {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.lotto-empty {
+  padding: 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.lotto-footer {
+  padding: 8px 14px;
+  font-size: 9px;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+
 /* Dark mode overrides */
 .dark .weather-card {
   background: linear-gradient(135deg, #0d1b4a, #1a237e);

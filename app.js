@@ -633,6 +633,110 @@ async function fetchArticlesRange(from, to) {
   return data || []
 }
 
+// ── Lotto Results ────────────────────────────────────
+let lottoResults = []
+let lottoLoading = true
+
+async function fetchLottoResults() {
+  if (!sb) return
+  try {
+    // Get today's date and yesterday's date in PH timezone
+    var now = new Date()
+    var phOffset = 8 * 60 * 60 * 1000
+    var phNow = new Date(now.getTime() + phOffset)
+    var today = phNow.toISOString().slice(0, 10)
+    
+    // Get yesterday too (in case today's draws haven't happened yet)
+    var yesterday = new Date(phNow.getTime() - 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10)
+    
+    var { data, error } = await sb
+      .from('lotto_results')
+      .select('*')
+      .in('draw_date', [today, yesterday])
+      .order('draw_date', { ascending: false })
+      .order('draw_time', { ascending: false })
+    
+    if (error) throw error
+    lottoResults = data || []
+  } catch (e) {
+    console.error('Failed to fetch lotto results:', e.message)
+    lottoResults = []
+  }
+  lottoLoading = false
+}
+
+function renderLottoWidget() {
+  if (lottoLoading) {
+    return '<div class="lotto-card"><div class="lotto-loading">⏳ Loading lotto results…</div></div>'
+  }
+  if (!lottoResults.length) {
+    return '<div class="lotto-card"><div class="lotto-empty">🎰 No results yet today</div></div>'
+  }
+  
+  // Group by game name (show only today's if available, else yesterday's)
+  var latestDate = lottoResults[0].draw_date
+  var todayResults = lottoResults.filter(function(r) { return r.draw_date === latestDate })
+  
+  var items = todayResults.map(function(r) {
+    var nums = (r.results || []).join(' ')
+    return `
+      <li class="lotto-item">
+        <div class="lotto-game-row">
+          <span class="lotto-game-name">${shortGameName(r.game_name)}</span>
+          <span class="lotto-draw-time">${r.draw_time}</span>
+        </div>
+        <div class="lotto-numbers">${nums}</div>
+        ${r.jackpot ? '<div class="lotto-jackpot">' + formatJackpot(r.jackpot) + '</div>' : ''}
+      </li>
+    `
+  }).join('')
+  
+  return `
+    <div class="lotto-card">
+      <div class="lotto-header">
+        <span>🎰 PCSO Lotto Results</span>
+        <span class="lotto-date">${formatDateShort(latestDate)}</span>
+      </div>
+      <ul class="lotto-list">${items}</ul>
+      <div class="lotto-footer">Source: PCSO via GMA News</div>
+    </div>
+  `
+}
+
+function shortGameName(name) {
+  var short = {
+    '2D Lotto (EZ2)': 'EZ2',
+    '3D Lotto (Swertres)': 'Swertres',
+    '4D Lotto': '4D',
+    '6D Lotto': '6D',
+    'Lotto 6/42': '6/42',
+    'Mega Lotto 6/45': 'Mega 6/45',
+    'Super Lotto 6/49': 'Super 6/49',
+    'Grand Lotto 6/55': 'Grand 6/55',
+    'Ultra Lotto 6/58': 'Ultra 6/58',
+  }
+  return short[name] || name
+}
+
+function formatJackpot(jackpot) {
+  if (!jackpot) return ''
+  var num = parseFloat(jackpot)
+  if (isNaN(num)) return ''
+  if (num >= 1000000) {
+    return 'Jackpot: ₱' + (num / 1000000).toFixed(1) + 'M'
+  }
+  return 'Prize: ₱' + Number(num).toLocaleString('en-PH')
+}
+
+function formatDateShort(dateStr) {
+  if (!dateStr) return ''
+  var parts = dateStr.split('-')
+  if (parts.length !== 3) return dateStr
+  var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+  return months[parseInt(parts[1]) - 1] + ' ' + parseInt(parts[2])
+}
+
 // ── Render: Sidebar ─────────────────────────────────
 
 function renderWeatherWidget() {
@@ -702,6 +806,7 @@ function renderSidebar(articles) {
   return `
     <aside class="landing-sidebar">
       ${renderWeatherWidget()}
+      ${renderLottoWidget()}
       ${renderLatestSidebar(articles)}
     </aside>
   `
@@ -949,9 +1054,10 @@ async function renderList() {
   }
 }
 
-// ── Category filter handler (pinned to window) ────
-
-
+// ── Lotto fetch on renderList ─────────────────────
+// Fetch lotto results when the list page loads (separate from weather)
+// so the sidebar has data even if weather is still loading.
+// The lotto fetch also runs on DOMContentLoaded.
 
 // ── Render: Admin Dashboard ───────────────────────
 async function renderAdmin() {
@@ -2010,20 +2116,30 @@ async function renderArticle(slug) {
   }
 }
 
+// ── Sidebar update helper (shared by weather + lotto) ──
+function updateSidebarWidget(selector, renderFn) {
+  if (currentRoute !== 'list') return
+  var sidebar = document.querySelector('.landing-sidebar')
+  if (!sidebar) return
+  var existing = sidebar.querySelector(selector)
+  if (existing) {
+    existing.outerHTML = typeof renderFn === 'function' ? renderFn() : renderFn
+  }
+}
+
 // ── Boot ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   handleRoute()
+  
+  // Fetch lotto results from DB (fast — local query)
+  fetchLottoResults().then(function() {
+    updateSidebarWidget('.lotto-card, .lotto-loading, .lotto-empty', renderLottoWidget)
+  })
+  
   // Fetch weather in background — get user's location first, then weather
   getUserLocation().then(function(coords) {
     return fetchWeather(coords)
   }).then(function() {
-    if (currentRoute !== 'list') return
-    var sidebar = document.querySelector('.landing-sidebar')
-    if (sidebar) {
-      var existing = sidebar.querySelector('.weather-card, .weather-error')
-      if (existing) {
-        existing.outerHTML = renderWeatherWidget()
-      }
-    }
+    updateSidebarWidget('.weather-card, .weather-error', renderWeatherWidget)
   })
 })
