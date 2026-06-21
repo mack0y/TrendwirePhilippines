@@ -250,13 +250,13 @@ When the editor is open, the admin splits into two columns:
 ### Photo Section
 - **Image Prompt** — Textarea for DALL-E/Midjourney style prompt
 - **🎨 Generate with AI** — Calls Pollinations.ai (free, no API key) → image preview with loading spinner
-- **✅ Use This Photo** — Saves generated image to Supabase Storage via `rapid-processor`
+- **✅ Use This Photo** — Saves generated image to Supabase Storage via `admin-operations`
 - **📁 Upload from Device** — File picker → validates 2 MB max → uploads to Supabase Storage
 - **🗑️ Remove** — Removes the current photo
 - **Note:** Publish is disabled until a photo is attached
 
 ### Action Buttons
-- **💾 Save Draft** — Saves all edits via `rapid-processor update-article`
+- **💾 Save Draft** — Saves all edits via `admin-operations update-article`
 - **📢 Publish** — Validates content (300–900 words) + photo required, then saves + publishes
 - **✕ Close** — Closes the editor without saving
 

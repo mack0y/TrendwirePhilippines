@@ -700,6 +700,18 @@ window.__catFilterTab = function(cat) {
   renderArticlesGrid()
 }
 
+// ── Shared category colors ────────────────────────────
+const CAT_COLORS = {
+  General: { bg: 'linear-gradient(135deg, #667eea, #764ba2)', emoji: '📰' },
+  Sports: { bg: 'linear-gradient(135deg, #e53935, #ff6f00)', emoji: '🏀' },
+  Politics: { bg: 'linear-gradient(135deg, #2c3e50, #4ca1af)', emoji: '🏛️' },
+  Disaster: { bg: 'linear-gradient(135deg, #e65100, #f57c00)', emoji: '⚠️' },
+  Economy: { bg: 'linear-gradient(135deg, #1b5e20, #43a047)', emoji: '💹' },
+  Health: { bg: 'linear-gradient(135deg, #004d40, #009688)', emoji: '🏥' },
+  Technology: { bg: 'linear-gradient(135deg, #283593, #5c6bc0)', emoji: '💻' },
+  Entertainment: { bg: 'linear-gradient(135deg, #6a1b9a, #ab47bc)', emoji: '🎬' },
+}
+
 // ── Render: Article Grid (can be called independently for load more) ──
 
 function renderArticlesGrid() {
@@ -718,16 +730,7 @@ function renderArticlesGrid() {
     return
   }
   
-  var catColors = {
-    General: { bg: 'linear-gradient(135deg, #667eea, #764ba2)', emoji: '📰' },
-    Sports: { bg: 'linear-gradient(135deg, #e53935, #ff6f00)', emoji: '🏀' },
-    Politics: { bg: 'linear-gradient(135deg, #2c3e50, #4ca1af)', emoji: '🏛️' },
-    Disaster: { bg: 'linear-gradient(135deg, #e65100, #f57c00)', emoji: '⚠️' },
-    Economy: { bg: 'linear-gradient(135deg, #1b5e20, #43a047)', emoji: '💹' },
-    Health: { bg: 'linear-gradient(135deg, #004d40, #009688)', emoji: '🏥' },
-    Technology: { bg: 'linear-gradient(135deg, #283593, #5c6bc0)', emoji: '💻' },
-    Entertainment: { bg: 'linear-gradient(135deg, #6a1b9a, #ab47bc)', emoji: '🎬' },
-  }
+  var catColors = CAT_COLORS
   
   var gridHtml = '<div class="article-grid">'
   displayArticles.forEach(function(a, i) {
@@ -824,16 +827,7 @@ async function renderList() {
     // ── Hero Carousel ──
     const heroArticles = articles.slice(0, Math.min(5, articles.length))
     
-    const catColors = {
-      General: { bg: 'linear-gradient(135deg, #667eea, #764ba2)', emoji: '📰' },
-      Sports: { bg: 'linear-gradient(135deg, #e53935, #ff6f00)', emoji: '🏀' },
-      Politics: { bg: 'linear-gradient(135deg, #2c3e50, #4ca1af)', emoji: '🏛️' },
-      Disaster: { bg: 'linear-gradient(135deg, #e65100, #f57c00)', emoji: '⚠️' },
-      Economy: { bg: 'linear-gradient(135deg, #1b5e20, #43a047)', emoji: '💹' },
-      Health: { bg: 'linear-gradient(135deg, #004d40, #009688)', emoji: '🏥' },
-      Technology: { bg: 'linear-gradient(135deg, #283593, #5c6bc0)', emoji: '💻' },
-      Entertainment: { bg: 'linear-gradient(135deg, #6a1b9a, #ab47bc)', emoji: '🎬' },
-    }
+    const catColors = CAT_COLORS
     
     const heroSlidesHtml = heroArticles.map((a, i) => {
       const cat = catColors[a.category] || catColors.General
@@ -928,13 +922,6 @@ async function renderList() {
 }
 
 // ── Category filter handler (pinned to window) ────
-window.__catFilter = function (cat) {
-  categoryFilter = cat
-  articles = [] // Refetch to refresh
-  loadedCount = 6
-  hasMoreArticles = true
-  renderList()
-}
 
 
 
