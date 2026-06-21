@@ -1,0 +1,19 @@
+name: Auto-Fetch Trends
+on:
+  schedule:
+    # Every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_dispatch:  # Allow manual trigger too
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call multi-source trend fetcher
+        run: |
+          curl -sf -X POST 'https://nvxykufajzppjtkmbtte.supabase.co/functions/v1/fetch-multi-sources' \
+            -H 'Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}' \
+            -H 'Content-Type: application/json' \
+            --max-time 60
+        # Note: SUPABASE_ANON_KEY must be set as a GitHub secret.
+        # Get it from: https://supabase.com/dashboard/project/nvxykufajzppjtkmbtte/settings/api
