@@ -647,34 +647,34 @@ function getWeatherEmoji(code) {
   return '🌤️'                           // Default
 }
 
-function renderTrendingSidebar(trends) {
-  if (!trends || !trends.length) return ''
-  var top = trends.slice(0, 10)
-  var items = top.map(function(t, i) {
+function renderLatestSidebar(articles) {
+  if (!articles || !articles.length) return ''
+  var top = articles.slice(0, 8)
+  var items = top.map(function(a, i) {
     return `
-      <li class="trending-sidebar-item" onclick="navigate('/admin')" title="Write article about this">
+      <li class="trending-sidebar-item" onclick="navigate('/article/${a.slug}')">
         <span class="trending-rank">${i + 1}</span>
         <div>
-          <div class="trending-sidebar-title">${escHtml(t.title)}</div>
-          <div class="trending-sidebar-score">⭐ ${t.impact_score || 'N/A'} · ${t.category || 'General'}</div>
+          <div class="trending-sidebar-title">${escHtml(a.title)}</div>
+          <div class="trending-sidebar-score">📅 ${formatDate(a.published_at || a.created_at)} · ${a.category || 'General'}</div>
         </div>
       </li>
     `
   }).join('')
   return `
     <div class="trending-sidebar">
-      <div class="trending-sidebar-header">🔥 Trending Now</div>
+      <div class="trending-sidebar-header">📰 Latest Articles</div>
       <ol class="trending-sidebar-list">${items}</ol>
-      <a class="trending-sidebar-more" href="javascript:void(0)" onclick="navigate('/admin')">📊 View all trends →</a>
+      <a class="trending-sidebar-more" href="javascript:void(0)" onclick="navigate('/')">📖 See all articles →</a>
     </div>
   `
 }
 
-function renderSidebar(trends) {
+function renderSidebar(articles) {
   return `
     <aside class="landing-sidebar">
       ${renderWeatherWidget()}
-      ${renderTrendingSidebar(trends)}
+      ${renderLatestSidebar(articles)}
     </aside>
   `
 }
@@ -812,11 +812,11 @@ async function renderList() {
       return
     }
 
-    // ── Trending ticker ──
-    const tickerItems = trends.slice(0, 15).map(t => `<span class="ticker-item">${escHtml(t.title)}</span>`).join('')
-    const tickerHtml = trends.length ? `
+    // ── Trending ticker (shows latest published articles, not Google Trends) ──
+    const tickerItems = articles.slice(0, 15).map(a => `<span class="ticker-item">${escHtml(a.title)}</span>`).join('')
+    const tickerHtml = articles.length ? `
       <div class="ticker-wrap">
-        <div class="ticker-label">🔥 TRENDING</div>
+        <div class="ticker-label">📰 LATEST</div>
         <div class="ticker-track">
           <div class="ticker-content">
             ${tickerItems}${tickerItems}
@@ -907,7 +907,7 @@ async function renderList() {
             ${tabsHtml}
             <div id="article-grid-container"></div>
           </div>
-          ${renderSidebar(trends)}
+          ${renderSidebar(articles)}
         </div>
       </div>
     `
