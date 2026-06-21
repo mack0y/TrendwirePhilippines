@@ -1026,7 +1026,8 @@ function renderArticlesGrid() {
     gridHtml += '</div>'
     gridHtml += '</a></div>'
   gridHtml += '</div>'
-  
+  })
+
   // Load more button
   var hasMore = filtered.length > displayArticles.length
   gridHtml += '<div class="load-more-wrap">'
