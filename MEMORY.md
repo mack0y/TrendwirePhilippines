@@ -299,11 +299,14 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **SUPABASE_ANON_KEY** — Added to GitHub secrets for the auto-fetch workflow
 - **Function verified** — Tested successfully: 20 unique trends fetched, 12 new saved, 1 Telegram alert sent (earthquake)
 
-### Landing Page Sidebar & Weather Widget (2026-06-22)
+### Landing Page Layout Overhaul (2026-06-22)
 - **🌤️ Weather Widget** — Fetches Manila weather from wttr.in (free, no API key) displayed in a blue gradient card with temp, conditions, humidity, wind, feels-like. Loads in background on page load; updates in-place without full re-render.
-- **🔥 Trending Now Sidebar** — Top 10 trends ranked by impact score, numbered 1-10 with gold/silver/bronze badges. Click any trend → navigates to `/admin` to write an article. Sticky on desktop, responsive on tablet/mobile.
-- **Layout** — `.landing-layout` flex container with `.landing-main` + `.landing-sidebar`. Desktop: sidebar sticks on scroll. Tablet (≤1024px): sidebar becomes 2-column grid. Mobile (≤640px): single column.
+- **📰 Latest Articles Sidebar** — Top 8 published articles in a numbered list with gold/silver/bronze badges for top 3. Shows date + category per item. Click any article → navigates to its `/article/slug` page. Sticky on desktop, responsive on tablet/mobile. Replaced the original trending sidebar (Google Trends data is now admin-only).
+- **📰 Ticker Changed** — The scrolling ticker now shows latest published article titles instead of Google Trends data. Label changed from "🔥 TRENDING" to "📰 LATEST". Google Trends data is no longer visible to the public.
+- **Layout Wider** — `--max-width` increased from 800px → 1100px so the sidebar doesn't squeeze the main content. `.landing-layout` flex container with `.landing-main` + `.landing-sidebar`.
+- **Responsive** — Desktop (>1024px): sidebar sticks on scroll. Tablet (641–1024px): sidebar becomes 2-column grid below content. Mobile (≤640px): single column.
 - **Telegram alert threshold lowered** — Changed from ≥70 to ≥50, tested successfully (3 alerts sent vs 0-1 before).
+- **Cleanup** — Removed unused `searchTrendsDB('')` fetch from `renderList()` since neither the ticker nor the sidebar use trends anymore.
 
 ### Post-Launch Fixes (2026-06-21)
 - **Pollinations cache-bust** — Added `_=${Date.now()}` to image URL so Regenerate produces a new image
@@ -353,6 +356,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v15 | Image prompt fine-tuning: Pollinations optimized prompts, style tags, model=flux, cache-bust fix |
 | v16 | Full code audit: CSS conflict fix, Twitter meta fix, Telegram link fix, dead CSS removed, MEMORY.md cleanup |
 | v17 | Weather widget + trending sidebar on landing page, Telegram threshold 70→50 |
+| v18 | Layout widened 800→1100px, sidebar+ ticker now show published articles (not Google Trends), dead code cleanup |
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy
