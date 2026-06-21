@@ -758,11 +758,14 @@ function shortGameName(name) {
 
 function formatJackpot(jackpot) {
   if (!jackpot) return ''
-  var num = parseFloat(jackpot)
+  // GMA News sends values like "4,000.00" — strip commas so parseFloat works
+  var cleaned = String(jackpot).replace(/,/g, '')
+  var num = parseFloat(cleaned)
   if (isNaN(num)) return ''
   if (num >= 1000000) {
     return 'Jackpot: ₱' + (num / 1000000).toFixed(1) + 'M'
   }
+  // Fixed prizes like EZ2 (₱4,000) and Swertres (₱4,500)
   return 'Prize: ₱' + Number(num).toLocaleString('en-PH')
 }
 
