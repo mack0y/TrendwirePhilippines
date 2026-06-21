@@ -786,10 +786,6 @@ async function renderList() {
   const icon = document.querySelector('.dark-toggle-icon')
   if (icon) icon.textContent = darkMode ? '☀️' : '🌙'
 
-  // Fetch trends for ticker
-  let trends = []
-  try { trends = await searchTrendsDB('') } catch {}
-
   renderLoading()
 
   try {
