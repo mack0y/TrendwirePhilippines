@@ -319,6 +319,54 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **Delete article** — Added `delete-article` action to Edge Function + single delete button per article
 - **Bulk delete** — Added `delete-articles` action (accepts `ids[]`), checkboxes, Select All, Delete Selected bulk bar
 
+### Lotto Results & Date Picker (2026-06-21)
+- **Lotto widget** — Added PCSO Lotto Results card to sidebar showing EZ2, Swertres, 6D, Lotto 6/42, Grand Lotto 6/55 results from Supabase `lotto_results` table
+- **Date picker dropdown** — Browse last 30 days of lotto results via dropdown in the red lotto card header; selected date persists in-memory while navigating
+- **Jackpot parsing fixed** — GMA News sends formatted numbers like `"4,000.00"`; `parseFloat()` chokes on commas returning `4` instead of `4000`. Added `.replace(/,/g, '')` before parsing so EZ2 shows ₱4,000 instead of "P4"
+- **Sidebar reordered** — Latest Articles moved above Lotto Results (Weather → Articles → Lotto)
+
+### Warm Background Texture (2026-06-22)
+- **Color** — Changed from cool gray `#f0f2f5` to warm cream `#f2efe9` (newspaper feel)
+- **Subtle texture** — 4 CSS gradient layers at 2–4% opacity: 🇵🇭 red glow from top, 🇵🇭 blue glow from right, 📰 newspaper lines at 36px, ◉ dot grid at 24px
+- **Dark mode** — Matching layers at slightly higher opacity
+- Content cards stay pure white with crisp shadows for readability
+
+### SEO Overhaul (2026-06-22)
+- **NewsArticle schema** — Upgraded from `Article` to `['NewsArticle', 'Article']` with rich ImageObject (1200x630 dimensions + caption)
+- **OG article tags** — Added `article:published_time`, `article:modified_time`, `article:section`, `article:tag`
+- **Robots meta** — Default `index, follow` on all pages; admin gets `noindex, nofollow`
+- **Language** — Changed from `en` to `en-PH`; added locale meta tags
+- **Preload hints** — `preconnect` + `dns-prefetch` for Supabase, jsDelivr, wttr.in
+- **robots.txt** — Allows all, disallows `/admin`, links to sitemap
+- **Sitemap workflow** — Daily GitHub Action (3AM PHT) generates `sitemap.xml` and commits to `main`
+
+### Internal Linking (2026-06-22)
+- **Breadcrumbs** — Visible `Home › Category › Title` navigation on article pages with crawlable `<a>` links
+- **Clickable tags** — Tags link to `/?tag=keyword` — filters articles by that tag
+- **Category links** — Category badges link to `/?category=...` for topical filtering
+- **Related articles** — Grid of 4 same-category articles at bottom of each article page
+- **Crawlable hero/cards/sidebar** — All article links changed from `<div onclick>` to `<a href>` for Googlebot crawlability
+- **Tag filter page** — `/?tag=...` filter with clear button and filter notice
+
+### Syntax Error Fix (2026-06-22)
+- **Missing forEach closure** — `renderArticlesGrid()` had an unclosed `displayArticles.forEach(function(a, i) {` — all subsequent code (load more, innerHTML, animation) was inside the forEach body, causing `SyntaxError: missing ) after argument list` at the function's closing `}`
+- **Fix** — Added `  })` after the grid closing div to properly close the forEach callback
+
+### Edge Function Deployment & Image Upload Fix (2026-06-22)
+- **Functions deployed** — All 4 Edge Functions (`admin-operations`, `fetch-trends`, `generate-article`, `fetch-multi-sources`) were never deployed! Ran `supabase link` + `supabase functions deploy` for each
+- **URL-based image upload** — Changed `handleUseGeneratedImage()` to pass the Pollinations `image_url` directly to the Edge Function (server-side fetch) instead of downloading + base64-encoding in the browser — avoids the 1MB Supabase Functions body size limit
+- **Edge Function updated** — `upload-image` case now supports both `image_url` (server-side fetch from URL) and `base64` (local file upload from browser)
+- **Env vars verified** — `SUPABASE_SERVICE_ROLE_KEY` and all other secrets set on deployed functions
+
+### Auto-Category from Trends (2026-06-22)
+- `generate-article` Edge Function now saves `category: trend.category || 'General'` to the article insert — previously the trend's category was read for the LLM prompt context but never persisted to the article, so every generated article defaulted to "General" in the editor
+
+### Image Prompt Improvement (2026-06-22)
+- **Two-step extraction** — LLM now instructed to: STEP 1 extract specific visual elements from the article (who, where, what, objects), STEP 2 construct the prompt using those specifics
+- **BAD vs GOOD examples** — Added contrastive examples showing generic vs article-specific prompts
+- **Formula** — `[Specific subject] + [Specific action] + [Specific setting] + [Lighting] + [Mood] + [Style tags]`
+- **Front page photo** — Explicit instruction: "Write a scene that would be the FRONT PAGE PHOTO for this story"
+
 ### Full Code Audit (2026-06-21)
 - **CSS conflict fixed** — Old `.article-grid` / `.article-card` definitions were overriding the new masonry grid layout (articles rendered in single column instead of 2-column). Removed duplicate definitions.
 - **Twitter meta tags fixed** — Dynamic `twitter:*` tags were using `property` attribute instead of `name`. Twitter parsers ignored them. Fixed `setMeta()` to use `name` for twitter tags, `property` for og tags.
@@ -357,6 +405,14 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v16 | Full code audit: CSS conflict fix, Twitter meta fix, Telegram link fix, dead CSS removed, MEMORY.md cleanup |
 | v17 | Weather widget + trending sidebar on landing page, Telegram threshold 70→50 |
 | v18 | Layout widened 800→1100px, sidebar+ ticker now show published articles (not Google Trends), dead code cleanup |
+| v19 | Lotto results widget in sidebar |
+| v20 | Lotto date picker: browse last 30 days |
+| v21 | Fix lotto jackpot parsing (comma bug) |
+| v22 | Warm cream background + PH flag glow + newspaper texture |
+| v23 | SEO overhaul: NewsArticle schema, OG tags, robots.txt, sitemap, preload hints |
+| v24 | Internal linking: breadcrumbs, clickable tags, related articles, crawlable links |
+| v25 | Fix syntax error: close unclosed forEach callback |
+| v26 | Fix image upload: deploy Edge Functions, URL-based upload to avoid body size limit
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy
