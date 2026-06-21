@@ -331,15 +331,41 @@ function fallbackCopy(text) {
 // ── Weather ────────────────────────────────────────
 let weatherData = null
 let weatherLoading = true
+let weatherLocation = ''
 
-async function fetchWeather() {
+function getUserLocation() {
+  return new Promise(function(resolve) {
+    if (!navigator.geolocation) { resolve(null); return }
+    navigator.geolocation.getCurrentPosition(
+      function(pos) {
+        resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude })
+      },
+      function() { resolve(null) }, // Denied or error — fall back to IP
+      { timeout: 5000, enableHighAccuracy: false }
+    )
+  })
+}
+
+async function fetchWeather(coords) {
   try {
-    var resp = await fetch('https://wttr.in/Manila?format=j1', {
+    // Build URL: use coordinates if available, otherwise IP auto-detect
+    var query = coords ? coords.lat + ',' + coords.lon : ''
+    var url = 'https://wttr.in/' + query + '?format=j1'
+    
+    var resp = await fetch(url, {
       headers: { 'User-Agent': 'TrendWire-Philippines/1.0' },
     })
     if (!resp.ok) throw new Error('Weather fetch failed')
+    
     var json = await resp.json()
     var cc = json.current_condition[0]
+    
+    // Extract location name from wttr.in response
+    var area = json.nearest_area && json.nearest_area[0]
+    var city = area && area.areaName && area.areaName[0] && area.areaName[0].value || ''
+    var country = area && area.country && area.country[0] && area.country[0].value || ''
+    weatherLocation = city + (country ? ', ' + country : '')
+    
     weatherData = {
       temp: cc.temp_C,
       desc: cc.weatherDesc[0].value,
@@ -351,6 +377,7 @@ async function fetchWeather() {
   } catch (e) {
     console.error('Weather fetch error:', e.message)
     weatherData = null
+    weatherLocation = ''
   }
   weatherLoading = false
 }
@@ -616,10 +643,11 @@ function renderWeatherWidget() {
     return '<div class="weather-error">🌤️ Weather unavailable</div>'
   }
   var emoji = getWeatherEmoji(weatherData.code)
+  var locLabel = weatherLocation || 'Unknown location'
   return `
     <div class="weather-card">
       <div class="weather-header">
-        <span class="weather-label">🌏 Manila, PH</span>
+        <span class="weather-label">🌏 ${escHtml(locLabel)}</span>
         <span class="weather-updated">just now</span>
       </div>
       <div class="weather-main">
@@ -1985,8 +2013,10 @@ async function renderArticle(slug) {
 // ── Boot ──────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   handleRoute()
-  // Fetch weather in background — update only the weather card, no full re-render
-  fetchWeather().then(function() {
+  // Fetch weather in background — get user's location first, then weather
+  getUserLocation().then(function(coords) {
+    return fetchWeather(coords)
+  }).then(function() {
     if (currentRoute !== 'list') return
     var sidebar = document.querySelector('.landing-sidebar')
     if (sidebar) {
