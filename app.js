@@ -294,6 +294,7 @@ async function renderAdmin() {
   let imagePreviewUrl = null
   let uploadedImageUrl = null
   let previewMode = false
+  let publishedResult = null
 
   let selectedModel = 'openrouter/free'
 
@@ -542,11 +543,9 @@ async function renderAdmin() {
       // Clear articles cache so list refreshes
       articles = []
       publishing = false
-      editingArticle = null
-      editorDraft = null
-      imagePreviewUrl = null
-      uploadedImageUrl = null
-      showToast(`✅ Published! "${result.title}" is now live`, 'success')
+      editingArticle = { ...editingArticle, ...result }
+      // Show publish success modal instead of closing editor
+      publishedResult = { id: result.id, title: result.title, slug: result.slug }
       render()
     } catch (e) {
       publishing = false
@@ -556,10 +555,27 @@ async function renderAdmin() {
   }
 
   function handleCloseEditor() {
+    publishedResult = null
     editingArticle = null
     editorDraft = null
     imagePreviewUrl = null
     uploadedImageUrl = null
+    render()
+  }
+
+  function handlePublishClose() {
+    publishedResult = null
+    editingArticle = null
+    editorDraft = null
+    imagePreviewUrl = null
+    uploadedImageUrl = null
+    render()
+  }
+
+  function handlePublishContinueEdit() {
+    publishedResult = null
+    // Update the article status in the management list
+    allArticles = allArticles.map(a => a.id === editingArticle?.id ? { ...a, status: 'published' } : a)
     render()
   }
 
@@ -837,6 +853,21 @@ async function renderAdmin() {
 
     // ── Editor section ──
     let editorHtml = ''
+    let modalHtml = publishedResult ? `
+      <div class="modal-overlay" onclick="if(event.target===this)renderAdmin.__publishClose()">
+        <div class="modal-content">
+          <div class="modal-icon">🎉</div>
+          <h2 class="modal-title">Published!</h2>
+          <p class="modal-article-title">${escHtml(publishedResult.title)}</p>
+          <p class="modal-subtitle">Your article is now live on TrendWire Philippines.</p>
+          <div class="modal-actions">
+            <a class="modal-btn modal-btn-primary" href="#/article/${publishedResult.slug}" target="_blank">👁️ View Article</a>
+            <button class="modal-btn modal-btn-secondary" onclick="renderAdmin.__publishContinueEdit()">✏️ Continue Editing</button>
+            <button class="modal-btn modal-btn-ghost" onclick="renderAdmin.__publishClose()">Close</button>
+          </div>
+        </div>
+      </div>
+    ` : ''
     if (hasEditor) {
       const d = editorDraft
       const contentWords = (d.content || '').trim().split(/\s+/).filter(Boolean).length
@@ -849,7 +880,7 @@ async function renderAdmin() {
           <div class="editor-scroll">
             <div class="editor-header">
               <h2>✏️ Edit Article</h2>
-              <span class="editor-status-badge draft-badge">Draft</span>
+              <span class="editor-status-badge ${editingArticle?.status === 'published' ? 'published-badge' : 'draft-badge'}">${editingArticle?.status === 'published' ? 'Published' : 'Draft'}</span>
             </div>
 
             <!-- Title -->
@@ -1012,6 +1043,7 @@ async function renderAdmin() {
     if (hasEditor) {
       app.innerHTML = `
         ${toastHtml}
+        ${modalHtml}
         <div class="container admin-split-layout">
           <div class="admin-sidebar">
             ${headerHtml}
@@ -1031,6 +1063,7 @@ async function renderAdmin() {
     } else {
       app.innerHTML = `
         ${toastHtml}
+        ${modalHtml}
         <div class="container">
           ${headerHtml}
           <div class="trend-list">
@@ -1066,6 +1099,8 @@ async function renderAdmin() {
   renderAdmin.__publish = handlePublish
   renderAdmin.__togglePreview = () => { previewMode = !previewMode; render() }
   renderAdmin.__closeEditor = handleCloseEditor
+  renderAdmin.__publishClose = handlePublishClose
+  renderAdmin.__publishContinueEdit = handlePublishContinueEdit
   renderAdmin.__generateImage = handleGenerateImage
   renderAdmin.__useGeneratedImage = handleUseGeneratedImage
   renderAdmin.__handleFileUpload = handleFileUpload

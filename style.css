@@ -971,6 +971,11 @@ body {
   color: #f57f17;
 }
 
+.published-badge {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
 /* ===== Editor Fields ===== */
 .editor-field {
   margin-bottom: 20px;
@@ -1622,6 +1627,115 @@ body {
   color: var(--text-muted);
   padding: 8px 4px;
   text-align: center;
+}
+
+/* ===== Publish Success Modal ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+  padding: 16px;
+}
+
+.modal-content {
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+  padding: 40px 32px 32px;
+  max-width: 440px;
+  width: 100%;
+  text-align: center;
+  animation: modalSlideIn 0.3s ease;
+}
+
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.modal-icon {
+  font-size: 48px;
+  margin-bottom: 12px;
+}
+
+.modal-title {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.modal-article-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--blue);
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.modal-subtitle {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.modal-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.modal-btn {
+  display: block;
+  width: 100%;
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  text-align: center;
+  transition: all var(--transition);
+  font-family: inherit;
+}
+
+.modal-btn-primary {
+  background: linear-gradient(135deg, var(--red), var(--red-dark));
+  color: white;
+  box-shadow: 0 2px 8px rgba(206, 17, 38, 0.3);
+}
+
+.modal-btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(206, 17, 38, 0.4);
+}
+
+.modal-btn-secondary {
+  background: var(--blue);
+  color: white;
+  box-shadow: 0 2px 8px rgba(0, 56, 168, 0.25);
+}
+
+.modal-btn-secondary:hover {
+  background: var(--blue-dark);
+  transform: translateY(-1px);
+}
+
+.modal-btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.modal-btn-ghost:hover {
+  color: var(--text-secondary);
+  background: var(--bg);
 }
 
 /* ===== Responsive ===== */
