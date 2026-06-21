@@ -66,7 +66,7 @@ Output:
   "content": "The New York Knicks are one win away from an NBA championship, and the entire Philippines is watching.\\n\\n**Jordan Clarkson**, the Filipino-American guard who has long been a source of national pride, is on the cusp of making history. If the Knicks close out the San Antonio Spurs in Game 5 at Madison Square Garden on June 14, Clarkson becomes the **first player of Filipino ancestry to ever win an NBA title**.\\n\\nThe Knicks took a commanding 3-1 series lead after pulling off the **biggest comeback in NBA Finals history** — erasing a 29-point deficit in Game 4.\\n\\n**The Philippines has fully embraced Clarkson as one of their own.** He suited up for Gilas Pilipinas at the 2018 Asian Games, where he averaged a jaw-dropping 26 points per game.",
   "seo_description": "Jordan Clarkson and the Knicks are one win away from the 2026 NBA title. Victory would make Clarkson the first Filipino-American NBA champion.",
   "tags": ["Jordan Clarkson", "NBA Finals 2026", "Filipino basketball", "New York Knicks"],
-  "image_prompt": "A dramatic wide shot of Madison Square Garden at night during an NBA Finals game"
+  "image_prompt": "Madison Square Garden packed with Filipino flag-waving fans during an NBA Finals game, dramatic arena lighting, confetti, photojournalism, editorial sports photography, sharp focus, documentary style"
 }`
 
     const prompt = `<persona>
@@ -109,8 +109,26 @@ Style: Conversational Filipino English. Short paragraphs, each making the reader
 ${fewShotExample}
 </example>
 
+<image_prompt>
+Generate a single image prompt optimized for photorealistic news photography. Rules:
+- Subject → Action → Setting/Environment → Lighting/Mood → Style tags
+- Style tags MUST end with: "photojournalism, editorial photography, documentary style, sharp focus, high resolution"
+- Style tags MUST NOT include: "masterpiece", "digital art", "illustration", "4k", "trending"
+- If Philippines-specific: include Filipino visual context (Manila street, Philippine flag, Filipino crowd, jeepney, etc.)
+- Category style guidance:
+  • Disaster/Accident: urgent, dramatic lighting, emergency response, wide shot showing scale
+  • Politics/Government: formal, podium or session hall, Filipino official setting
+  • Sports: dynamic motion, crowd energy, dramatic arena lighting, action peak
+  • Economy/Business: modern office, market trading floor, factory, street market
+  • Health: hospital setting, medical professional, clinical lighting
+  • Entertainment: stage performance, concert lights, celebrity close-up
+  • General: street-level Philippines, diverse Filipino people, natural light
+- 15-35 words, descriptive but concise, no quotation marks
+- For negative/unpleasant topics (disaster, crime, disease): show aftermath, response, or symbolic representation — NOT graphic violence or gore
+</image_prompt>
+
 Respond with valid JSON only (no markdown, no code fences):
-{"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"DALL-E prompt here"}`
+{"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"subject, action, setting, lighting mood, photojournalism, editorial photography, documentary style, sharp focus, high resolution"}`
 
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',

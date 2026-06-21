@@ -1157,9 +1157,27 @@ async function renderAdmin() {
     render()
   }
 
+  function enhanceImagePrompt(rawPrompt) {
+    var enhanced = rawPrompt.trim()
+    // Add Philippine context if the prompt is short and generic (check BEFORE appending style tags)
+    var locationHints = ['philippine', 'filipino', 'manila', 'ph', 'pinoy', 'cebu', 'davao', 'metro manila']
+    var hasLocation = locationHints.some(function(h) { return enhanced.toLowerCase().includes(h) })
+    if (!hasLocation && enhanced.length < 60) {
+      var first = enhanced.charAt(0)
+      enhanced = 'Philippine ' + (first === first.toUpperCase() ? first.toLowerCase() + enhanced.slice(1) : enhanced)
+    }
+    // Auto-append news photography style tags if not already present
+    var styleTags = ['photojournalism', 'editorial photography', 'documentary style', 'sharp focus', 'high resolution']
+    var hasStyle = styleTags.some(function(tag) { return enhanced.toLowerCase().includes(tag) })
+    if (!hasStyle) {
+      enhanced += ', ' + styleTags.join(', ')
+    }
+    return enhanced
+  }
+
   async function handleGenerateImage() {
-    const prompt = editorDraft?.image_prompt
-    if (!prompt) {
+    var rawPrompt = editorDraft?.image_prompt
+    if (!rawPrompt) {
       showToast('⚠️ Please enter an image prompt first', 'error')
       return
     }
@@ -1167,19 +1185,34 @@ async function renderAdmin() {
     imagePreviewUrl = null
     render()
 
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1280&height=720&nofeed=true&_=${Date.now()}`
+    var enhancedPrompt = enhanceImagePrompt(rawPrompt)
+    // Use Flux model for best photorealistic news imagery
+    var url = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(enhancedPrompt) +
+      '?width=1280&height=720&model=flux&nofeed=true&seed=' + Math.floor(Math.random() * 2147483647)
 
     // Preload the image
-    const img = new Image()
-    img.onload = () => {
+    var img = new Image()
+    img.onload = function() {
       imagePreviewUrl = url
       imageGenerating = false
       render()
     }
-    img.onerror = () => {
-      imageGenerating = false
-      showToast('❌ Image generation failed — try again or upload manually', 'error')
-      render()
+    img.onerror = function() {
+      // Retry without style modifiers in case the enhanced prompt caused issues
+      var fallbackUrl = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(rawPrompt.slice(0, 100)) +
+        '?width=1280&height=720&nofeed=true&seed=' + Math.floor(Math.random() * 2147483647)
+      var fallbackImg = new Image()
+      fallbackImg.onload = function() {
+        imagePreviewUrl = fallbackUrl
+        imageGenerating = false
+        render()
+      }
+      fallbackImg.onerror = function() {
+        imageGenerating = false
+        showToast('❌ Image generation failed — try a different prompt or upload manually', 'error')
+        render()
+      }
+      fallbackImg.src = fallbackUrl
     }
     img.src = url
   }
