@@ -8,6 +8,24 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let articles = []
 let currentRoute = 'list'
 let currentSlug = null
+let categoryFilter = ''
+let darkMode = localStorage.getItem('tw-dark') === 'true'
+
+// ── Apply dark mode on load ────────────────────────
+if (darkMode) document.documentElement.classList.add('dark')
+
+// ── Dark mode toggle (global, called from header) ───
+window.toggleDarkMode = function () {
+  darkMode = !darkMode
+  document.documentElement.classList.toggle('dark', darkMode)
+  localStorage.setItem('tw-dark', darkMode)
+  // Update theme-color meta tag
+  const meta = document.getElementById('theme-color')
+  if (meta) meta.content = darkMode ? '#1a1a2e' : '#CE1126'
+  // Update toggle icon
+  const icon = document.querySelector('.dark-toggle-icon')
+  if (icon) icon.textContent = darkMode ? '☀️' : '🌙'
+}
 
 // ── Init Supabase ─────────────────────────────────
 let sb
@@ -54,7 +72,7 @@ async function fetchArticles() {
 
   const { data, error } = await sb
     .from('articles')
-    .select('id, title, slug, summary, category, tags, published_at, created_at')
+    .select('id, title, slug, summary, category, tags, published_at, created_at, image_url')
     .eq('status', 'published')
     .order('published_at', { ascending: false })
     .limit(20)
@@ -197,10 +215,20 @@ async function generateArticleFromTrend(trendId, model) {
 function renderLoading() {
   const app = document.getElementById('app')
   app.innerHTML = `
+    <div class="ticker-wrap">
+      <div class="ticker-label" style="background:rgba(0,0,0,0.15)">🔥 LOADING</div>
+      <div class="ticker-track">
+        <div class="ticker-content" style="animation:none;color:rgba(255,255,255,0.5);font-size:12px;font-weight:600;padding-left:24px">
+          <span>Fetching latest stories…</span>
+        </div>
+      </div>
+    </div>
     <div class="container">
-      <div class="skeleton skeleton-card"></div>
-      <div class="skeleton skeleton-card"></div>
-      <div class="skeleton skeleton-card"></div>
+      <div class="skeleton skeleton-hero"></div>
+      <div class="skeleton-grid">
+        <div class="skeleton skeleton-card"></div>
+        <div class="skeleton skeleton-card"></div>
+      </div>
     </div>
   `
 }
@@ -223,6 +251,15 @@ function renderError(message) {
 // ── Render: Article List ──────────────────────────
 async function renderList() {
   const app = document.getElementById('app')
+
+  // Update dark toggle icon in header
+  const icon = document.querySelector('.dark-toggle-icon')
+  if (icon) icon.textContent = darkMode ? '☀️' : '🌙'
+
+  // Fetch trends for ticker
+  let trends = []
+  try { trends = await searchTrendsDB('') } catch {}
+
   renderLoading()
 
   try {
@@ -243,30 +280,160 @@ async function renderList() {
       return
     }
 
-    app.innerHTML = `
-      <div class="container">
-        <h1 class="page-title">Trending Now</h1>
-        <p class="page-subtitle">Latest stories from across the Philippines</p>
-        <div class="article-grid">
-          ${articles.map(a => `
-            <div class="article-card" data-category="${a.category || 'General'}"
-                 onclick="navigate('article/${a.slug}')">
-              <span class="category-badge">${a.category || 'General'}</span>
-              <h2>${a.title}</h2>
-              <p class="summary">${a.summary || ''}</p>
-              <div class="meta">
-                <span class="date">📅 ${formatDate(a.published_at || a.created_at)}</span>
-                <span class="read-more">Read more →</span>
-              </div>
+    // ── Trending ticker (seamless: content duplicated for infinite scroll) ──
+    const tickerItems = trends.slice(0, 15).map(t => `<span class="ticker-item">${escHtml(t.title)}</span>`).join('')
+    const tickerHtml = trends.length ? `
+      <div class="ticker-wrap">
+        <div class="ticker-label">🔥 TRENDING</div>
+        <div class="ticker-track">
+          <div class="ticker-content">
+            ${tickerItems}${tickerItems}
+          </div>
+        </div>
+      </div>
+    ` : ''
+
+    // ── Category pills ──
+    const categories = [...new Set(articles.map(a => a.category || 'General'))].sort()
+    const pillsHtml = `
+      <div class="category-pills">
+        <button class="pill ${!categoryFilter ? 'pill-active' : ''}" onclick="window.__catFilter('')">All</button>
+        ${categories.map(c => `
+          <button class="pill ${categoryFilter === c ? 'pill-active' : ''}" onclick="window.__catFilter('${c}')">${c}</button>
+        `).join('')}
+      </div>
+    `
+
+    // ── Filtered articles ──
+    const filtered = categoryFilter
+      ? articles.filter(a => (a.category || 'General') === categoryFilter)
+      : articles
+
+    // Handle empty filter results before accessing hero props
+    if (!filtered.length) {
+      app.innerHTML = `
+        ${tickerHtml}
+        <div class="container">
+          <div class="landing-header">
+            <div>
+              <h1 class="page-title">Trending Now</h1>
+              <p class="page-subtitle">Latest stories from across the Philippines</p>
             </div>
-          `).join('')}
+            <div class="landing-article-count">0 articles</div>
+          </div>
+          ${pillsHtml}
+          <div class="empty-state">
+            <div class="icon">🔍</div>
+            <h2>No articles in this category</h2>
+            <p>Try selecting a different category.</p>
+          </div>
+        </div>
+      `
+      return
+    }
+
+    const hero = filtered[0]
+    const rest = filtered.slice(1)
+
+    // ── Hero section ──
+    const catColors = {
+      General: { bg: 'linear-gradient(135deg, #667eea, #764ba2)', emoji: '📰' },
+      Sports: { bg: 'linear-gradient(135deg, #e53935, #ff6f00)', emoji: '🏀' },
+      Politics: { bg: 'linear-gradient(135deg, #2c3e50, #4ca1af)', emoji: '🏛️' },
+      Disaster: { bg: 'linear-gradient(135deg, #e65100, #f57c00)', emoji: '⚠️' },
+      Economy: { bg: 'linear-gradient(135deg, #1b5e20, #43a047)', emoji: '💹' },
+      Health: { bg: 'linear-gradient(135deg, #004d40, #009688)', emoji: '🏥' },
+      Technology: { bg: 'linear-gradient(135deg, #283593, #5c6bc0)', emoji: '💻' },
+      Entertainment: { bg: 'linear-gradient(135deg, #6a1b9a, #ab47bc)', emoji: '🎬' },
+    }
+    const heroCat = catColors[hero.category] || catColors.General
+    const heroImgStyle = hero.image_url
+      ? `background-image: url(${hero.image_url});`
+      : `background: ${heroCat.bg};`
+
+    const heroHtml = `
+      <div class="hero-card" onclick="navigate('article/${hero.slug}')">
+        <div class="hero-bg" style="${heroImgStyle} background-size: cover; background-position: center;">
+          <div class="hero-overlay"></div>
+          <div class="hero-content">
+            <span class="hero-category">${heroCat.emoji} ${hero.category || 'General'}</span>
+            <h1 class="hero-title">${hero.title}</h1>
+            ${hero.summary ? `<p class="hero-summary">${hero.summary}</p>` : ''}
+            <div class="hero-meta">
+              <span>📅 ${formatDate(hero.published_at || hero.created_at)}</span>
+              <span>📖 ${Math.max(1, Math.ceil((hero.summary || '').split(/\s+/).filter(Boolean).length / 50))} min read</span>
+            </div>
+            <span class="hero-cta">Read Story →</span>
+          </div>
         </div>
       </div>
     `
+
+    // ── Photo-first grid cards ──
+    const gridHtml = rest.length ? `
+      <div class="article-grid">
+        ${rest.map(a => {
+          const cat = catColors[a.category] || catColors.General
+          const imgStyle = a.image_url
+            ? `background-image: url(${a.image_url});`
+            : `background: ${cat.bg};`
+          return `
+            <div class="article-card" data-category="${a.category || 'General'}"
+                 onclick="navigate('article/${a.slug}')">
+              <div class="card-img" style="${imgStyle} background-size: cover; background-position: center;">
+                ${!a.image_url ? `<span class="card-img-emoji">${cat.emoji}</span>` : ''}
+              </div>
+              <div class="card-body">
+                <span class="card-category-badge">${cat.emoji} ${a.category || 'General'}</span>
+                <h2 class="card-title">${a.title}</h2>
+                <p class="card-summary">${a.summary || ''}</p>
+                <div class="card-meta">
+                  <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
+                  <span>📖 ${Math.max(1, Math.ceil((a.summary || '').split(/\s+/).filter(Boolean).length / 50))} min</span>
+                </div>
+              </div>
+            </div>
+          `
+        }).join('')}
+      </div>
+    ` : ''
+
+    app.innerHTML = `
+      ${tickerHtml}
+      <div class="container">
+        <div class="landing-header">
+          <div>
+            <h1 class="page-title">Trending Now</h1>
+            <p class="page-subtitle">Latest stories from across the Philippines</p>
+          </div>
+          <div class="landing-article-count">${filtered.length} article${filtered.length !== 1 ? 's' : ''}</div>
+        </div>
+        ${pillsHtml}
+        ${heroHtml}
+        ${gridHtml}
+        ${!rest.length && categoryFilter ? `<p class="no-more">Only one article in this category.</p>` : ''}
+      </div>
+    `
+
+    // Trigger stagger animation after DOM paint
+    requestAnimationFrame(() => {
+      document.querySelectorAll('.article-card').forEach((el, i) => {
+        el.style.animationDelay = `${i * 0.08}s`
+        el.classList.add('card-visible')
+      })
+    })
+
   } catch (e) {
     console.error('Failed to load articles:', e)
     renderError(e.message)
   }
+}
+
+// ── Category filter handler (pinned to window) ────
+window.__catFilter = function (cat) {
+  categoryFilter = cat
+  articles = [] // Refetch to refresh
+  renderList()
 }
 
 // ── Render: Admin Dashboard ───────────────────────

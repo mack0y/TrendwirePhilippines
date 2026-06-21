@@ -8,7 +8,7 @@
   <meta property="og:title" content="TrendWire Philippines">
   <meta property="og:description" content="Trending stories and news from across the Philippines">
   <meta property="og:type" content="website">
-  <meta name="theme-color" content="#CE1126">
+  <meta name="theme-color" id="theme-color" content="#CE1126">
   <link rel="stylesheet" href="style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🇵🇭</text></svg>">
 </head>
@@ -19,7 +19,12 @@
         <span class="flag">🇵🇭</span>
         <span>TrendWire <span class="accent">PH</span></span>
       </button>
-      <span class="tagline">Stories that move the nation</span>
+      <div class="header-right">
+        <span class="tagline">Stories that move the nation</span>
+        <button class="dark-toggle" onclick="toggleDarkMode()" title="Toggle dark mode" aria-label="Toggle dark mode">
+          <span class="dark-toggle-icon">🌙</span>
+        </button>
+      </div>
     </div>
   </header>
 
