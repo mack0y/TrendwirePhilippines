@@ -636,34 +636,59 @@ async function fetchArticlesRange(from, to) {
 // ── Lotto Results ────────────────────────────────────
 let lottoResults = []
 let lottoLoading = true
+let lottoAvailableDates = []
+let selectedLottoDate = ''
 
 async function fetchLottoResults() {
   if (!sb) return
   try {
-    // Get today's date and yesterday's date in PH timezone
+    // Get today's date in PH timezone
     var now = new Date()
     var phOffset = 8 * 60 * 60 * 1000
     var phNow = new Date(now.getTime() + phOffset)
     var today = phNow.toISOString().slice(0, 10)
     
-    // Get yesterday too (in case today's draws haven't happened yet)
-    var yesterday = new Date(phNow.getTime() - 24 * 60 * 60 * 1000)
+    // Get date 30 days ago so we have history to browse
+    var daysAgo = new Date(phNow.getTime() - 30 * 24 * 60 * 60 * 1000)
       .toISOString().slice(0, 10)
     
     var { data, error } = await sb
       .from('lotto_results')
       .select('*')
-      .in('draw_date', [today, yesterday])
+      .gte('draw_date', daysAgo)
+      .lte('draw_date', today)
       .order('draw_date', { ascending: false })
       .order('draw_time', { ascending: false })
     
     if (error) throw error
     lottoResults = data || []
+    
+    // Build list of available dates (unique, sorted descending by date)
+    var seen = {}
+    lottoAvailableDates = []
+    for (var i = 0; i < lottoResults.length; i++) {
+      var d = lottoResults[i].draw_date
+      if (!seen[d]) {
+        seen[d] = true
+        lottoAvailableDates.push(d)
+      }
+    }
+    
+    // Default to the latest available date
+    if (lottoAvailableDates.length > 0 && !selectedLottoDate) {
+      selectedLottoDate = lottoAvailableDates[0]
+    }
   } catch (e) {
     console.error('Failed to fetch lotto results:', e.message)
     lottoResults = []
+    lottoAvailableDates = []
   }
   lottoLoading = false
+}
+
+window.__selectLottoDate = function(date) {
+  selectedLottoDate = date
+  updateSidebarWidget('.lotto-card, .lotto-loading, .lotto-empty', renderLottoWidget)
 }
 
 function renderLottoWidget() {
@@ -674,11 +699,23 @@ function renderLottoWidget() {
     return '<div class="lotto-card"><div class="lotto-empty">🎰 No results yet today</div></div>'
   }
   
-  // Group by game name (show only today's if available, else yesterday's)
-  var latestDate = lottoResults[0].draw_date
-  var todayResults = lottoResults.filter(function(r) { return r.draw_date === latestDate })
+  // Use selected date or fall back to latest
+  var activeDate = selectedLottoDate || lottoResults[0].draw_date
   
-  var items = todayResults.map(function(r) {
+  // Filter results for the selected date
+  var dayResults = lottoResults.filter(function(r) { return r.draw_date === activeDate })
+  
+  // Build date dropdown
+  var dateOptions = lottoAvailableDates.map(function(d) {
+    var sel = d === activeDate ? 'selected' : ''
+    return '<option value="' + d + '" ' + sel + '>' + formatDateShort(d) + '</option>'
+  }).join('')
+  
+  var dateDropdown = lottoAvailableDates.length > 1
+    ? '<select class="lotto-date-select" onchange="window.__selectLottoDate(this.value)">' + dateOptions + '</select>'
+    : '<span class="lotto-date-label">' + formatDateShort(activeDate) + '</span>'
+  
+  var items = dayResults.map(function(r) {
     var nums = (r.results || []).join(' ')
     return `
       <li class="lotto-item">
@@ -696,7 +733,7 @@ function renderLottoWidget() {
     <div class="lotto-card">
       <div class="lotto-header">
         <span>🎰 PCSO Lotto Results</span>
-        <span class="lotto-date">${formatDateShort(latestDate)}</span>
+        ${dateDropdown}
       </div>
       <ul class="lotto-list">${items}</ul>
       <div class="lotto-footer">Source: PCSO via GMA News</div>
