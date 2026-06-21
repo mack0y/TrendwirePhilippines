@@ -258,7 +258,7 @@ async function fetchArticleBySlug(slug) {
 /** Call the admin-operations Edge Function with an action and payload. */
 async function adminOperation(action, payload = {}) {
   if (!sb) throw new Error('Supabase not initialized')
-  const { data, error } = await sb.functions.invoke('rapid-processor', {
+  const { data, error } = await sb.functions.invoke('admin-operations', {
     body: { action, ...payload },
   })
   if (error) throw error
