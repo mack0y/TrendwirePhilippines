@@ -253,7 +253,7 @@ serve(async (req) => {
       if (saved) {
         newTrends.push(saved)
         // Send alert for high-impact trends
-        if (item.impact_score >= 70) {
+        if (item.impact_score >= 50) {
           await sendTelegramAlert(
             item.title,
             item.category,
