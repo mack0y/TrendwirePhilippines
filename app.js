@@ -134,7 +134,7 @@ function setMeta(name, content) {
   let el = document.querySelector('meta[name="' + name + '"], meta[property="' + name + '"]')
   if (!el) {
     el = document.createElement('meta')
-    if (name.startsWith('og:') || name.startsWith('twitter:')) {
+    if (name.startsWith('og:')) {
       el.setAttribute('property', name)
     } else {
       el.setAttribute('name', name)

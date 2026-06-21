@@ -195,47 +195,7 @@ body {
   margin-top: 6px;
 }
 
-/* ===== Category Pills ===== */
-.category-pills {
-  display: flex;
-  gap: 8px;
-  overflow-x: auto;
-  padding-bottom: 8px;
-  margin-bottom: 20px;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-
-.category-pills::-webkit-scrollbar {
-  display: none;
-}
-
-.pill {
-  flex-shrink: 0;
-  background: var(--bg);
-  border: 2px solid transparent;
-  color: var(--text-secondary);
-  font-size: 12px;
-  font-weight: 700;
-  padding: 6px 16px;
-  border-radius: 20px;
-  cursor: pointer;
-  transition: all var(--transition);
-  font-family: inherit;
-  white-space: nowrap;
-}
-
-.pill:hover {
-  background: var(--border);
-  color: var(--text);
-}
-
-.pill-active {
-  background: var(--blue) !important;
-  color: white !important;
-  border-color: var(--blue);
-  box-shadow: 0 2px 8px rgba(0, 56, 168, 0.25);
-}
+/* ===== Category Pills (deprecated — replaced by category-tabs, kept for fallback) ===== */
 
 /* ===== Reading Progress Bar ===== */
 .reading-progress {
@@ -830,115 +790,9 @@ body {
   margin-bottom: 24px;
 }
 
-/* ===== Article Grid ===== */
-.article-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* ===== Article Card ===== */
-.article-card {
-  background: var(--surface);
-  border-radius: var(--radius);
-  box-shadow: var(--shadow);
-  padding: 20px 24px;
-  cursor: pointer;
-  transition: all var(--transition);
-  border-left: 4px solid var(--border);
-  position: relative;
-  overflow: hidden;
-}
-
-.article-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-hover);
-}
-
-.article-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 3px;
-  background: linear-gradient(90deg, var(--red), var(--gold));
-  opacity: 0;
-  transition: opacity var(--transition);
-}
-
-.article-card:hover::before {
-  opacity: 1;
-}
-
-.article-card .category-badge {
-  display: inline-block;
-  background: var(--blue);
-  color: white;
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  padding: 3px 10px;
-  border-radius: 20px;
-  margin-bottom: 10px;
-}
-
-.article-card h2 {
-  font-size: 18px;
-  font-weight: 700;
-  line-height: 1.4;
-  margin-bottom: 8px;
-  color: var(--text);
-}
-
-.article-card .summary {
-  color: var(--text-secondary);
-  font-size: 14px;
-  line-height: 1.5;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-}
-
-.article-card .meta {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-  font-size: 12px;
-  color: var(--text-muted);
-}
-
-.article-card .meta .date {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.article-card .read-more {
-  margin-left: auto;
-  color: var(--red);
-  font-weight: 600;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  transition: gap var(--transition);
-}
-
-.article-card:hover .read-more {
-  gap: 8px;
-}
-
-/* Category Colors */
-.article-card[data-category="Sports"] { border-left-color: #E74C3C; }
-.article-card[data-category="Politics"] { border-left-color: #2C3E50; }
-.article-card[data-category="Disaster"] { border-left-color: #E67E22; }
-.article-card[data-category="Economy"] { border-left-color: #27AE60; }
-.article-card[data-category="Health"] { border-left-color: #3498DB; }
-.article-card[data-category="General"] { border-left-color: var(--text-muted); }
+/* ===== Article Grid (deleted duplicate — see above for active definition) ===== */
+/* NOTE: .article-grid and .article-card are defined in the "Masonry-inspired" section above.
+   The old border-left card style was removed in favor of the photo-first card design. */
 
 /* ===== Article Detail ===== */
 .article-detail {
@@ -1546,61 +1400,7 @@ body {
   background: var(--text-secondary);
 }
 
-.generated-result {
-  background: #e8f5e9;
-  border: 2px solid #4caf50;
-  border-radius: var(--radius);
-  padding: 20px;
-  margin-bottom: 24px;
-  animation: fadeIn 0.4s ease;
-}
-
-.result-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 12px;
-  font-size: 15px;
-}
-
-.result-header .result-icon {
-  font-size: 20px;
-}
-
-.generated-result h3 {
-  font-size: 18px;
-  font-weight: 700;
-  margin-bottom: 8px;
-  color: var(--text);
-}
-
-.result-summary {
-  font-size: 14px;
-  color: var(--text-secondary);
-  margin-bottom: 12px;
-}
-
-.result-meta {
-  display: flex;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--text-muted);
-  margin-bottom: 16px;
-}
-
-.result-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.result-actions .retry-btn {
-  display: inline-block;
-  text-decoration: none;
-  padding: 8px 16px;
-  border-radius: var(--radius-sm);
-  font-size: 13px;
-  font-weight: 600;
-}
+/* generated-result block removed — replaced by publish success modal */
 
 /* ===== Footer ===== */
 .site-footer {

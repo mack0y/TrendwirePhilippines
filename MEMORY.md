@@ -38,7 +38,7 @@ Rappler RSS ───────────┘          │
                                                     │             content, tags,      image generation
                                                     ▼             category, SEO)      or file upload)
                                            GitHub Pages                                    │
-                                       (index.html → Supabase API)                  rapid-processor
+                                       (index.html → Supabase API)                                                              admin-operations
                                                                                     (Edge Function)
                                                                                   ┌────┴────┐
                                                                               Supabase      Supabase
@@ -51,8 +51,8 @@ Rappler RSS ───────────┘          │
 1. **Fetch Trends** — Admin page loads trends from DB; background-fetches from Google Trends
 2. **Generate** — Select a model (owl-alpha or deepseek-v4-flash), click Generate → `generate-article` Edge Function saves draft in Supabase
 3. **Edit** — Split-pane editor opens inline: edit title, summary, content, tags, category, SEO description
-4. **Photo** — Enter image prompt → "Generate with AI" uses free Pollinations.ai → preview → "Use This Photo" saves to Supabase Storage via `rapid-processor`
-5. **Save / Publish** — Save Draft calls `rapid-processor update-article`; Publish flips status to `published` with content validation
+4. **Photo** — Enter image prompt → "Generate with AI" uses free Pollinations.ai → preview → "Use This Photo" saves to Supabase Storage via `admin-operations`
+5. **Save / Publish** — Save Draft calls `admin-operations update-article`; Publish flips status to `published` with content validation
 
 ---
 
@@ -91,8 +91,8 @@ Rappler RSS ───────────┘          │
 │   │   │   └── index.ts           # Multi-source fetcher: Google Trends + Rappler, dedup, Telegram alerts
 │   │   ├── generate-article/
 │   │   │   └── index.ts           # Call OpenRouter LLM (model-selectable)
-│   │   └── rapid-processor/
-│   │       └── index.ts           # Admin CRUD: get/update/publish article + upload image
+│   │   ├── admin-operations/
+│   │   │   └── index.ts           # Admin CRUD: get/update/publish article + upload image
 │   └── migrations/
 │       ├── 0001_initial_schema.sql
 │       ├── 0002_add_missing_columns.sql
@@ -204,8 +204,8 @@ Rappler RSS ───────────┘          │
 - **Prompt structure:** `<persona>`, `<context>`, `<rules>`, `<thinking>` (CoT planning step), `<structure>` (category-specific), `<formatting>`, `<example>` (few-shot reference)
 - Supported models: `openrouter/free` (default), `openrouter/owl-alpha`, `deepseek/deepseek-v4-flash`
 
-### `rapid-processor` (admin CRUD)
-Consolidated admin Edge Function handling 5 actions:
+### `admin-operations` (admin CRUD)
+Consolidated admin Edge Function handling 6 actions:
 | Action | Purpose |
 |--------|---------|
 | `get-article` | Fetch any article by ID (draft or published) |
@@ -215,11 +215,13 @@ Consolidated admin Edge Function handling 5 actions:
 | `delete-articles` | Bulk delete multiple articles by IDs + their images |
 | `upload-image` | Accept base64 → store in `article-images` bucket → return public URL + update article |
 
+**Note:** This function was originally deployed as `rapid-processor`. It was renamed to `admin-operations` to match the project structure. The frontend calls it via `sb.functions.invoke('admin-operations', ...)`.
+
 ---
 
 ## Admin Dashboard (Frontend)
 
-**URL:** `https://mack0y.github.io/TrendwirePhilippines/#/admin` (no public link — private)
+**URL:** `https://mack0y.github.io/TrendwirePhilippines/admin` (no public link — private)
 
 ### Features
 - **📥 Fetch Latest PH Trends** button — Calls `fetch-trends` Edge Function, shows toast notification
@@ -297,7 +299,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **SUPABASE_ANON_KEY** — Added to GitHub secrets for the auto-fetch workflow
 - **Function verified** — Tested successfully: 20 unique trends fetched, 12 new saved, 1 Telegram alert sent (earthquake)
 
-### Post-Launch Fixes (2026-06-20)
+### Post-Launch Fixes (2026-06-21)
 - **Pollinations cache-bust** — Added `_=${Date.now()}` to image URL so Regenerate produces a new image
 - **Word count relaxed** — Lowered minimum from 400→300, raised max from 700→900
 - **Color thresholds aligned** — Word counter green from 300–900 words (was 400–700)
@@ -307,6 +309,14 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **Default model** — Changed from `openrouter/owl-alpha` to `openrouter/free`
 - **Delete article** — Added `delete-article` action to Edge Function + single delete button per article
 - **Bulk delete** — Added `delete-articles` action (accepts `ids[]`), checkboxes, Select All, Delete Selected bulk bar
+
+### Full Code Audit (2026-06-21)
+- **CSS conflict fixed** — Old `.article-grid` / `.article-card` definitions were overriding the new masonry grid layout (articles rendered in single column instead of 2-column). Removed duplicate definitions.
+- **Twitter meta tags fixed** — Dynamic `twitter:*` tags were using `property` attribute instead of `name`. Twitter parsers ignored them. Fixed `setMeta()` to use `name` for twitter tags, `property` for og tags.
+- **Telegram alert link fixed** — Link used old hash routing (`/#/admin`). Changed to `/admin`.
+- **JSON-LD SearchAction fixed** — Pointed to non-existent `#/search` route. Updated to `/search`.
+- **Dead CSS removed** — Removed `.category-pills`, `.pill`, `.pill-active`, `.generated-result` block (replaced by category-tabs and publish modal).
+- **`rapid-processor` → `admin-operations`** — Fixed all documentation references.
 
 ### Admin Dashboard Improvements (2026-06-21)
 - **🖱️ Click to Edit** — Article management titles now clickable to open any draft/published article in the split-pane editor; published articles get an `↗` external link to view live
@@ -332,6 +342,10 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v10 | Bulk delete with checkboxes + Select All |
 | v11 | Click to edit articles, trend search bar, markdown preview tab, prompt engineering overhaul |
 | v12 | Multi-source trend fetching (Google Trends + Rappler), dedup, Telegram alerts, auto-fetch every 30 min |
+| v13 | Full SEO overhaul: pushState routing, JSON-LD, OG/Twitter tags, sitemap/feed generation, 404.html fallback |
+| v14 | Dynamic Newsroom landing page: hero carousel, reading progress, sliding category tabs, masonry grid, load more |
+| v15 | Image prompt fine-tuning: Pollinations optimized prompts, style tags, model=flux, cache-bust fix |
+| v16 | Full code audit: CSS conflict fix, Twitter meta fix, Telegram link fix, dead CSS removed, MEMORY.md cleanup |
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy

@@ -20,7 +20,7 @@ async function sendTelegramAlert(title: string, category: string, score: number,
     `📡 ${source}`,
     summary ? `📝 ${escHtml(summary.slice(0, 120))}${summary.length > 120 ? '…' : ''}` : '',
     '',
-    `<a href="${siteUrl}/#/admin">✏️ Write article</a>`,
+    `<a href="${siteUrl}/admin">✏️ Write article</a>`,
   ].filter(Boolean).join('\n')
 
   try {
