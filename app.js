@@ -33,6 +33,11 @@ let currentRoute = 'list'
 let currentSlug = null
 let categoryFilter = ''
 let darkMode = localStorage.getItem('tw-dark') === 'true'
+let loadedCount = 0
+let isLoadingMore = false
+let hasMoreArticles = true
+let heroInterval = null
+let heroTouchStartX = 0
 
 // ── Apply dark mode on load ────────────────────────
 if (darkMode) document.documentElement.classList.add('dark')
@@ -401,12 +406,281 @@ function renderError(message) {
   `
 }
 
+// ── Reading Progress ──────────────────────────────
+let readingProgressInitialized = false
+
+function initReadingProgress() {
+  if (readingProgressInitialized) return
+  readingProgressInitialized = true
+  
+  var bar = document.querySelector('.reading-progress')
+  if (!bar) {
+    bar = document.createElement('div')
+    bar.className = 'reading-progress'
+    document.body.appendChild(bar)
+  }
+  var ticking = false
+  window.addEventListener('scroll', function() {
+    if (!ticking) {
+      requestAnimationFrame(function() {
+        var scrollTop = window.scrollY || document.documentElement.scrollTop
+        var docHeight = document.documentElement.scrollHeight - window.innerHeight
+        if (docHeight > 0) {
+          var pct = Math.min(100, (scrollTop / docHeight) * 100)
+          bar.style.width = pct + '%'
+          bar.classList.toggle('visible', scrollTop > 200)
+        }
+        ticking = false
+      })
+      ticking = true
+    }
+  })
+}
+
+// ── Hero Carousel ─────────────────────────────────
+let heroCarouselSlides = []
+let heroCarouselIndex = 0
+
+function initHeroCarousel(articles, slidesData) {
+  heroCarouselSlides = slidesData
+  heroCarouselIndex = 0
+  stopHeroCarousel()
+  
+  var dots = document.querySelectorAll('.hero-dot')
+  if (slidesData.length <= 1) return
+  
+  heroInterval = setInterval(function() {
+    nextHeroSlide()
+  }, 5000)
+  
+  // Touch/swipe support
+  var el = document.querySelector('.hero-carousel')
+  if (el) {
+    el.addEventListener('touchstart', function(e) {
+      heroTouchStartX = e.touches[0].clientX
+    }, { passive: true })
+    el.addEventListener('touchend', function(e) {
+      var diff = heroTouchStartX - e.changedTouches[0].clientX
+      if (Math.abs(diff) > 50) {
+        if (diff > 0) nextHeroSlide()
+        else prevHeroSlide()
+      }
+    }, { passive: true })
+    el.addEventListener('mouseenter', function() { stopHeroCarousel() })
+    el.addEventListener('mouseleave', function() { startHeroCarousel() })
+  }
+}
+
+function goToHeroSlide(index) {
+  var slides = document.querySelectorAll('.hero-slide')
+  var dots = document.querySelectorAll('.hero-dot')
+  if (!slides.length) return
+  heroCarouselIndex = (index + slides.length) % slides.length
+  slides.forEach(function(s, i) {
+    s.classList.toggle('active', i === heroCarouselIndex)
+  })
+  dots.forEach(function(d, i) {
+    d.classList.toggle('active', i === heroCarouselIndex)
+  })
+}
+
+function nextHeroSlide() { goToHeroSlide(heroCarouselIndex + 1) }
+function prevHeroSlide() { goToHeroSlide(heroCarouselIndex - 1) }
+function stopHeroCarousel() { if (heroInterval) { clearInterval(heroInterval); heroInterval = null } }
+function startHeroCarousel() {
+  stopHeroCarousel()
+  if (heroCarouselSlides.length > 1) {
+    heroInterval = setInterval(function() { nextHeroSlide() }, 5000)
+  }
+}
+
+// ── Category Tabs ─────────────────────────────────
+function initCategoryTabs(categories) {
+  var wrap = document.querySelector('.category-tabs-wrap')
+  if (!wrap) return
+  var container = wrap.querySelector('.category-tabs')
+  var indicator = wrap.querySelector('.category-tab-indicator')
+  if (!container || !indicator) return
+  
+  function moveIndicator(btn) {
+    if (!btn) return
+    var wrapRect = wrap.getBoundingClientRect()
+    var btnRect = btn.getBoundingClientRect()
+    indicator.style.left = (btnRect.left - wrapRect.left) + 'px'
+    indicator.style.width = btnRect.width + 'px'
+  }
+  
+  var active = container.querySelector('.category-tab.active')
+  if (active) moveIndicator(active)
+  
+  // Update on click
+  container.querySelectorAll('.category-tab').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      container.querySelectorAll('.category-tab').forEach(function(b) { b.classList.remove('active') })
+      btn.classList.add('active')
+      moveIndicator(btn)
+      // Scroll into view
+      btn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' })
+    })
+  })
+  
+  // Update on window resize
+  window.addEventListener('resize', function() {
+    var a = container.querySelector('.category-tab.active')
+    if (a) moveIndicator(a)
+  })
+}
+
+// ── Load More ─────────────────────────────────────
+async function loadMoreArticles() {
+  if (isLoadingMore || !hasMoreArticles) return
+  isLoadingMore = true
+  var btn = document.querySelector('.load-more-btn')
+  if (btn) btn.disabled = true
+  try {
+    var from = loadedCount
+    var to = from + 6
+    var newArticles = await fetchArticlesRange(from, to - 1)
+    if (newArticles.length === 0) {
+      hasMoreArticles = false
+      var wrap = document.querySelector('.load-more-wrap')
+      if (wrap) {
+        wrap.innerHTML = '<p class="no-more">All articles loaded</p>'
+      }
+      return
+    }
+    // Filter out already loaded articles by slug
+    var existingSlugs = new Set(articles.map(function(a) { return a.slug }))
+    var unique = newArticles.filter(function(a) { return !existingSlugs.has(a.slug) })
+    if (unique.length === 0) {
+      hasMoreArticles = false
+      return
+    }
+    articles = articles.concat(unique)
+    loadedCount += unique.length
+    renderArticlesGrid()
+  } catch (e) {
+    console.error('Failed to load more:', e)
+  } finally {
+    isLoadingMore = false
+    if (btn) btn.disabled = false
+  }
+}
+
+async function fetchArticlesRange(from, to) {
+  if (!sb) throw new Error('Supabase not initialized')
+  var { data, error } = await sb
+    .from('articles')
+    .select('id, title, slug, summary, category, tags, published_at, created_at, image_url')
+    .eq('status', 'published')
+    .order('published_at', { ascending: false })
+    .range(from, to)
+  if (error) throw error
+  return data || []
+}
+
+// ── Render: Category Tabs (separate from main render so we can re-render grid without redoing everything) ──
+
+function renderCategoryTabs(categories) {
+  return categories.length > 1 ? `
+    <div class="category-tabs-wrap">
+      <div class="category-tabs">
+        <button class="category-tab ${!categoryFilter ? 'active' : ''}" onclick="window.__catFilterTab('')">All</button>
+        ${categories.map(function(c) {
+          return `<button class="category-tab ${categoryFilter === c ? 'active' : ''}" onclick="window.__catFilterTab('${c}')">${escHtml(c)}</button>`
+        }).join('')}
+      </div>
+      <div class="category-tab-indicator"></div>
+    </div>
+  ` : ''
+}
+
+window.__catFilterTab = function(cat) {
+  categoryFilter = cat
+  renderArticlesGrid()
+}
+
+// ── Render: Article Grid (can be called independently for load more) ──
+
+function renderArticlesGrid() {
+  var app = document.getElementById('app')
+  var gridContainer = app.querySelector('#article-grid-container')
+  if (!gridContainer) return
+  
+  var filtered = categoryFilter
+    ? articles.filter(function(a) { return (a.category || 'General') === categoryFilter })
+    : articles
+  
+  var displayArticles = filtered.slice(0, loadedCount)
+  
+  if (!displayArticles.length) {
+    gridContainer.innerHTML = '<div class="empty-state"><div class="icon">🔍</div><h2>No articles in this category</h2><p>Try selecting a different category.</p></div>'
+    return
+  }
+  
+  var catColors = {
+    General: { bg: 'linear-gradient(135deg, #667eea, #764ba2)', emoji: '📰' },
+    Sports: { bg: 'linear-gradient(135deg, #e53935, #ff6f00)', emoji: '🏀' },
+    Politics: { bg: 'linear-gradient(135deg, #2c3e50, #4ca1af)', emoji: '🏛️' },
+    Disaster: { bg: 'linear-gradient(135deg, #e65100, #f57c00)', emoji: '⚠️' },
+    Economy: { bg: 'linear-gradient(135deg, #1b5e20, #43a047)', emoji: '💹' },
+    Health: { bg: 'linear-gradient(135deg, #004d40, #009688)', emoji: '🏥' },
+    Technology: { bg: 'linear-gradient(135deg, #283593, #5c6bc0)', emoji: '💻' },
+    Entertainment: { bg: 'linear-gradient(135deg, #6a1b9a, #ab47bc)', emoji: '🎬' },
+  }
+  
+  var gridHtml = '<div class="article-grid">'
+  displayArticles.forEach(function(a, i) {
+    var cat = catColors[a.category] || catColors.General
+    var isFeatured = i === 0 && loadedCount > 1
+    var imgHtml = a.image_url
+      ? '<img src="' + a.image_url + '" alt="' + escHtml(a.title) + '" loading="lazy">'
+      : '<span class="card-img-emoji">' + cat.emoji + '</span>'
+    
+    gridHtml += '<div class="article-card' + (isFeatured ? ' card-featured' : '') + '" data-category="' + (a.category || 'General') + '" onclick="navigate(\'/article/' + a.slug + '\')">'
+    gridHtml += '<div class="card-img" style="background:' + cat.bg + '">' + imgHtml + '</div>'
+    gridHtml += '<div class="card-body">'
+    gridHtml += '<span class="card-category-badge">' + cat.emoji + ' ' + (a.category || 'General') + '</span>'
+    gridHtml += '<h2 class="card-title">' + escHtml(a.title) + '</h2>'
+    gridHtml += '<p class="card-summary">' + escHtml(a.summary || '') + '</p>'
+    gridHtml += '<div class="card-meta"><span>📅 ' + formatDate(a.published_at || a.created_at) + '</span><span>📖 ' + Math.max(1, Math.ceil((a.summary || '').split(/\s+/).filter(Boolean).length / 50)) + ' min</span></div>'
+    gridHtml += '</div></div>'
+  })
+  gridHtml += '</div>'
+  
+  // Load more button
+  var hasMore = filtered.length > displayArticles.length
+  gridHtml += '<div class="load-more-wrap">'
+  if (isLoadingMore) {
+    gridHtml += '<button class="load-more-btn" disabled><span class="load-more-spinner"></span> Loading…</button>'
+  } else if (hasMore) {
+    gridHtml += '<button class="load-more-btn" onclick="loadMoreArticles()">📰 Load More Articles</button>'
+  } else if (loadedCount > 6) {
+    gridHtml += '<p class="no-more">All articles loaded</p>'
+  }
+  gridHtml += '</div>'
+  
+  gridContainer.innerHTML = gridHtml
+  
+  // Animate cards
+  requestAnimationFrame(function() {
+    var cards = gridContainer.querySelectorAll('.article-card')
+    cards.forEach(function(el, i) {
+      el.style.animationDelay = (i * 0.08) + 's'
+      el.classList.add('animate-in')
+    })
+  })
+}
+
 // ── Render: Article List ──────────────────────────
 async function renderList() {
   const app = document.getElementById('app')
 
   // Reset SEO for homepage
   updateSeoForList()
+
+  // Init reading progress
+  initReadingProgress()
 
   // Update dark toggle icon in header
   const icon = document.querySelector('.dark-toggle-icon')
@@ -421,6 +695,8 @@ async function renderList() {
   try {
     if (!articles.length) {
       articles = await fetchArticles()
+      loadedCount = Math.min(6, articles.length)
+      hasMoreArticles = articles.length >= 20
     }
 
     if (!articles.length) {
@@ -436,7 +712,7 @@ async function renderList() {
       return
     }
 
-    // ── Trending ticker (seamless: content duplicated for infinite scroll) ──
+    // ── Trending ticker ──
     const tickerItems = trends.slice(0, 15).map(t => `<span class="ticker-item">${escHtml(t.title)}</span>`).join('')
     const tickerHtml = trends.length ? `
       <div class="ticker-wrap">
@@ -449,49 +725,9 @@ async function renderList() {
       </div>
     ` : ''
 
-    // ── Category pills ──
-    const categories = [...new Set(articles.map(a => a.category || 'General'))].sort()
-    const pillsHtml = `
-      <div class="category-pills">
-        <button class="pill ${!categoryFilter ? 'pill-active' : ''}" onclick="window.__catFilter('')">All</button>
-        ${categories.map(c => `
-          <button class="pill ${categoryFilter === c ? 'pill-active' : ''}" onclick="window.__catFilter('${c}')">${c}</button>
-        `).join('')}
-      </div>
-    `
-
-    // ── Filtered articles ──
-    const filtered = categoryFilter
-      ? articles.filter(a => (a.category || 'General') === categoryFilter)
-      : articles
-
-    // Handle empty filter results before accessing hero props
-    if (!filtered.length) {
-      app.innerHTML = `
-        ${tickerHtml}
-        <div class="container">
-          <div class="landing-header">
-            <div>
-              <h1 class="page-title">Trending Now</h1>
-              <p class="page-subtitle">Latest stories from across the Philippines</p>
-            </div>
-            <div class="landing-article-count">0 articles</div>
-          </div>
-          ${pillsHtml}
-          <div class="empty-state">
-            <div class="icon">🔍</div>
-            <h2>No articles in this category</h2>
-            <p>Try selecting a different category.</p>
-          </div>
-        </div>
-      `
-      return
-    }
-
-    const hero = filtered[0]
-    const rest = filtered.slice(1)
-
-    // ── Hero section ──
+    // ── Hero Carousel ──
+    const heroArticles = articles.slice(0, Math.min(5, articles.length))
+    
     const catColors = {
       General: { bg: 'linear-gradient(135deg, #667eea, #764ba2)', emoji: '📰' },
       Sports: { bg: 'linear-gradient(135deg, #e53935, #ff6f00)', emoji: '🏀' },
@@ -502,58 +738,58 @@ async function renderList() {
       Technology: { bg: 'linear-gradient(135deg, #283593, #5c6bc0)', emoji: '💻' },
       Entertainment: { bg: 'linear-gradient(135deg, #6a1b9a, #ab47bc)', emoji: '🎬' },
     }
-    const heroCat = catColors[hero.category] || catColors.General
-    const heroImgStyle = hero.image_url
-      ? `background-image: url(${hero.image_url});`
-      : `background: ${heroCat.bg};`
-
-    const heroHtml = `
-      <div class="hero-card" onclick="navigate('/article/${hero.slug}')">
-        <div class="hero-bg" style="${heroImgStyle} background-size: cover; background-position: center;">
-          <div class="hero-overlay"></div>
-          <div class="hero-content">
-            <span class="hero-category">${heroCat.emoji} ${hero.category || 'General'}</span>
-            <h1 class="hero-title">${hero.title}</h1>
-            ${hero.summary ? `<p class="hero-summary">${hero.summary}</p>` : ''}
-            <div class="hero-meta">
-              <span>📅 ${formatDate(hero.published_at || hero.created_at)}</span>
-              <span>📖 ${Math.max(1, Math.ceil((hero.summary || '').split(/\s+/).filter(Boolean).length / 50))} min read</span>
+    
+    const heroSlidesHtml = heroArticles.map((a, i) => {
+      const cat = catColors[a.category] || catColors.General
+      const imgStyle = a.image_url
+        ? `background-image: url(${a.image_url});`
+        : `background: ${cat.bg};`
+      return `
+        <div class="hero-slide ${i === 0 ? 'active' : ''}" onclick="navigate('/article/${a.slug}')">
+          <div class="hero-slide-bg" style="${imgStyle} background-size: cover; background-position: center;"></div>
+          <div class="hero-slide-overlay"></div>
+          <div class="hero-slide-content">
+            <span class="hero-slide-category">${cat.emoji} ${a.category || 'General'}</span>
+            <h2 class="hero-slide-title">${escHtml(a.title)}</h2>
+            ${a.summary ? `<p class="hero-slide-summary">${escHtml(a.summary)}</p>` : ''}
+            <div class="hero-slide-meta">
+              <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
+              <span>📖 ${Math.max(1, Math.ceil((a.summary || '').split(/\s+/).filter(Boolean).length / 50))} min read</span>
             </div>
-            <span class="hero-cta">Read Story →</span>
+            <span class="hero-slide-cta">Read Story →</span>
           </div>
         </div>
+      `
+    }).join('')
+    
+    const heroDotsHtml = heroArticles.length > 1 ? `
+      <div class="hero-dots">
+        ${heroArticles.map((_, i) => `<button class="hero-dot ${i === 0 ? 'active' : ''}" onclick="goToHeroSlide(${i})" aria-label="Slide ${i + 1}"></button>`).join('')}
       </div>
-    `
-
-    // ── Photo-first grid cards ──
-    const gridHtml = rest.length ? `
-      <div class="article-grid">
-        ${rest.map(a => {
-          const cat = catColors[a.category] || catColors.General
-          const imgStyle = a.image_url
-            ? `background-image: url(${a.image_url});`
-            : `background: ${cat.bg};`
-          return `
-            <div class="article-card" data-category="${a.category || 'General'}"
-                 onclick="navigate('/article/${a.slug}')">
-              <div class="card-img" style="${imgStyle} background-size: cover; background-position: center;">
-                ${!a.image_url ? `<span class="card-img-emoji">${cat.emoji}</span>` : ''}
-              </div>
-              <div class="card-body">
-                <span class="card-category-badge">${cat.emoji} ${a.category || 'General'}</span>
-                <h2 class="card-title">${a.title}</h2>
-                <p class="card-summary">${a.summary || ''}</p>
-                <div class="card-meta">
-                  <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
-                  <span>📖 ${Math.max(1, Math.ceil((a.summary || '').split(/\s+/).filter(Boolean).length / 50))} min</span>
-                </div>
-              </div>
-            </div>
-          `
-        }).join('')}
+    ` : ''
+    
+    const heroHtml = heroArticles.length ? `
+      <div class="hero-carousel">
+        <div class="hero-slides">
+          ${heroSlidesHtml}
+        </div>
+        ${heroDotsHtml}
+        ${heroArticles.length > 1 ? '<div class="hero-swipe-hint">›</div>' : ''}
       </div>
     ` : ''
 
+    // ── Categories ──
+    const categories = [...new Set(articles.map(a => a.category || 'General'))].sort()
+    const tabsHtml = renderCategoryTabs(categories)
+    
+    // ── Filtered Articles Grid ──
+    const filtered = categoryFilter
+      ? articles.filter(a => (a.category || 'General') === categoryFilter)
+      : articles
+    
+    const displayArticles = filtered.slice(0, loadedCount)
+    
+    // ── Assemble page ──
     app.innerHTML = `
       ${tickerHtml}
       <div class="container">
@@ -564,20 +800,25 @@ async function renderList() {
           </div>
           <div class="landing-article-count">${filtered.length} article${filtered.length !== 1 ? 's' : ''}</div>
         </div>
-        ${pillsHtml}
         ${heroHtml}
-        ${gridHtml}
-        ${!rest.length && categoryFilter ? `<p class="no-more">Only one article in this category.</p>` : ''}
+        <div class="section-label">Latest Stories</div>
+        ${tabsHtml}
+        <div id="article-grid-container"></div>
       </div>
     `
-
-    // Trigger stagger animation after DOM paint
-    requestAnimationFrame(() => {
-      document.querySelectorAll('.article-card').forEach((el, i) => {
-        el.style.animationDelay = `${i * 0.08}s`
-        el.classList.add('card-visible')
-      })
-    })
+    
+    // Render grid into container
+    renderArticlesGrid()
+    
+    // Init hero carousel after DOM
+    if (heroArticles.length > 1) {
+      initHeroCarousel(articles, heroArticles)
+    }
+    
+    // Init category tabs after DOM
+    if (categories.length > 1) {
+      initCategoryTabs(categories)
+    }
 
   } catch (e) {
     console.error('Failed to load articles:', e)
@@ -589,8 +830,12 @@ async function renderList() {
 window.__catFilter = function (cat) {
   categoryFilter = cat
   articles = [] // Refetch to refresh
+  loadedCount = 6
+  hasMoreArticles = true
   renderList()
 }
+
+
 
 // ── Render: Admin Dashboard ───────────────────────
 async function renderAdmin() {
