@@ -74,8 +74,7 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 ├── .github/workflows/
 │   ├── publish-article.yml        # Manual/dispatch article publishing
 │   └── publish-ghpages.yml        # Auto-publish latest draft on push to main
-├── drafts/
-│   └── jordan-clarkson-nba-finals-2026.json   # Sample draft article
+├── drafts/                           # (empty — deleted test draft)
 ├── scripts/
 │   ├── publish-article.py         # CLI: validate & publish drafts to Supabase
 │   └── test_pipeline.py           # Manual end-to-end pipeline test
@@ -178,8 +177,9 @@ Google Trends PH RSS  ──>  fetch-trends (Deno)  ──>  trends table (Supab
 
 ### `generate-article`
 - Takes `trend_id` and optional `model` (overrides `OPENROUTER_MODEL` env var)
-- Builds category-specific prompt, calls OpenRouter, saves draft to Supabase
-- Supported models: `openrouter/owl-alpha` (default), `deepseek/deepseek-v4-flash`
+- Builds category-specific prompt with XML-tagged sections, calls OpenRouter, saves draft to Supabase
+- **Prompt structure:** `<persona>`, `<context>`, `<rules>`, `<thinking>` (CoT planning step), `<structure>` (category-specific), `<formatting>`, `<example>` (few-shot reference)
+- Supported models: `openrouter/free` (default), `openrouter/owl-alpha`, `deepseek/deepseek-v4-flash`
 
 ### `rapid-processor` (admin CRUD)
 Consolidated admin Edge Function handling 5 actions:
@@ -200,7 +200,8 @@ Consolidated admin Edge Function handling 5 actions:
 
 ### Features
 - **📥 Fetch Latest PH Trends** button — Calls `fetch-trends` Edge Function, shows toast notification
-- **🤖 Model Selector** — Dropdown to choose between `Owl Alpha` and `DeepSeek V4 Flash` for article generation
+- **🔍 Trend Search** — Client-side filter bar instantly searches trends by title/summary with ✕ clear button; status shows `"3/12 trends"` when filtered; empty state differentiates "No trends yet" vs "No matching trends"
+- **🤖 Model Selector** — Dropdown to choose between `OpenRouter Free`, `Owl Alpha`, and `DeepSeek V4 Flash` for article generation
 - **Impact score badges** — Trends display 🔥 (≥70), 📈 (≥40), or 📊 (<40) badge with score
 - **Sort by highest score** — Trends ordered by `impact_score DESC`, then `created_at DESC`
 - **Instant load** — Trends shown immediately from DB, then background-fetches from Google Trends
@@ -216,7 +217,7 @@ When the editor is open, the admin splits into two columns:
 |-------|----------|
 | **Title** | Text input, live 65-char counter |
 | **Summary** | Textarea, live 160-char counter |
-| **Content** | Large textarea, live word count (300–900 range indicator), `**text** → bold` hint |
+| **Content** | Large textarea with ✏️ Edit / 👁️ Preview toggle tabs; Preview mode shows rendered HTML via `renderMarkdown()`; live word count (300–900 range indicator), `**text** → bold` hint in Edit mode |
 | **Category** | Dropdown (General, Sports, Politics, Disaster, Economy, Health, Technology, Entertainment) |
 | **Tags** | Text input, comma-separated, live preview as pills |
 | **SEO Description** | Textarea, live 155-char counter |
@@ -235,9 +236,10 @@ When the editor is open, the admin splits into two columns:
 - **✕ Close** — Closes the editor without saving
 
 ### Article Management Section
-Below the trends list, the admin dashboard now shows **Published Articles** and **Drafts** grouped with:
+Below the trends list, the admin dashboard shows **Published Articles** and **Drafts** grouped with:
 - ✅ **Checkboxes** — Select individual articles for bulk operations
 - ✅ **Select All** — Checkbox in the Published section header to toggle all
+- **🖱️ Click to Edit** — Click any article title (draft or published) to load it into the split-pane editor for editing; published articles show an `↗` external link to view the live version
 - **🗑️ Delete (single)** — Per-article delete button with confirmation
 - **🗑️ Delete Selected** — Orange bulk action bar appears when items are selected
 - **✕ Clear** — Clears the current selection
@@ -275,6 +277,13 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **Delete article** — Added `delete-article` action to Edge Function + single delete button per article
 - **Bulk delete** — Added `delete-articles` action (accepts `ids[]`), checkboxes, Select All, Delete Selected bulk bar
 
+### Admin Dashboard Improvements (2026-06-21)
+- **🖱️ Click to Edit** — Article management titles now clickable to open any draft/published article in the split-pane editor; published articles get an `↗` external link to view live
+- **🔍 Trend Search Bar** — Client-side filter bar with instant title/summary matching, ✕ clear button, live filtered count in status bar, smart empty states
+- **👁️ Markdown Preview Tab** — Content editor has ✏️ Edit / 👁️ Preview toggle tabs; Preview mode renders full HTML via `renderMarkdown()`; resets to Edit mode when opening new articles
+- **Prompt Engineering Overhaul** — `generate-article` prompt restructured with XML-tagged sections (`<persona>`, `<context>`, `<rules>`, `<thinking>`, `<structure>`, `<formatting>`, `<example>`), added chain-of-thought planning step, positive formatting rules (relaxed bold to 3-6), few-shot example from test draft, richer persona with audience/voice
+- **Removed test draft** — Deleted `drafts/jordan-clarkson-nba-finals-2026.json` so CI doesn't re-publish it on every push
+
 ---
 
 ## Cache-Busting History
@@ -290,6 +299,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v8 | Model selector |
 | v9 | Delete article (single) + article management section |
 | v10 | Bulk delete with checkboxes + Select All |
+| v11 | Click to edit articles, trend search bar, markdown preview tab, prompt engineering overhaul |
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy
@@ -319,6 +329,8 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **GitHub Pages 404 on fresh deploy** — Can take 2–5 minutes for Pages to deploy after pushing.
 - **CDN cache on frontend** — After pushing JS changes, increment `?v=N` in `index.html`.
 - **Model selector reset** — Resets to default on page reload (no localStorage persistence).
+- **Test drafts in DB** — After prompt verification, 2 test drafts remain in the database. Delete from admin dashboard article management.
+- **Test draft deleted from filesystem** — `drafts/jordan-clarkson-nba-finals-2026.json` was removed so CI won't re-publish it, but published Clarkson articles still exist in the DB.
 - **Pollinations.ai reliability** — Free AI image generation may have variable latency or occasional failures.
 - **Supabase Storage free tier** — 1 GB total storage, 5 GB/month bandwidth, 2 MB max per file.
 
@@ -337,9 +349,9 @@ Full end-to-end test run against production (Python 3.14 + `supabase` 2.31.0):
 | Frontend read path (anon key) | ✅ Returns 2 clean articles |
 
 ### Current Production State
-- **2 published articles:** Scotland World Cup article + Jordan Clarkson article
-- **11 trends** in the DB (all from June 19, 2026)
-- **0 drafts** in DB
+- **2 published articles** in DB (Scotland World Cup + Jordan Clarkson — to be cleaned up from admin)
+- **12 trends** in the DB
+- **2 drafts** in DB (test articles from prompt verification)
 - **Supabase access token** — stored in conversation (do not commit to git)
 
 ---

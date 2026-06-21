@@ -276,6 +276,7 @@ async function renderAdmin() {
   let generating = null
   let fetching = false
   let toast = null
+  let trendSearch = ''
 
   // Articles management
   let allArticles = []
@@ -292,6 +293,7 @@ async function renderAdmin() {
   let imageGenerating = false
   let imagePreviewUrl = null
   let uploadedImageUrl = null
+  let previewMode = false
 
   let selectedModel = 'openrouter/free'
 
@@ -383,6 +385,28 @@ async function renderAdmin() {
     }
   }
 
+  async function openArticleInEditor(articleId) {
+    previewMode = false
+    try {
+      const article = await adminOperation('get-article', { id: articleId })
+      editingArticle = article
+      editorDraft = {
+        title: article.title || '',
+        summary: article.summary || '',
+        content: article.content || '',
+        category: article.category || 'General',
+        tags: (article.tags || []).join(', '),
+        seo_description: article.seo_description || '',
+        image_prompt: article.image_prompt || '',
+      }
+      imagePreviewUrl = article.image_url || null
+      uploadedImageUrl = article.image_url || null
+      render()
+    } catch (e) {
+      showToast('❌ Failed to load article: ' + e.message, 'error')
+    }
+  }
+
   function showToast(message, type = 'info') {
     toast = { message, type }
     render()
@@ -423,6 +447,7 @@ async function renderAdmin() {
 
   async function handleGenerate(trendId) {
     generating = trendId
+    previewMode = false
     render()
     try {
       const result = await generateArticleFromTrend(trendId, selectedModel)
@@ -672,6 +697,14 @@ async function renderAdmin() {
   function render() {
     const hasEditor = editingArticle && editorDraft
 
+    // Filter trends by search query (before headerHtml since it's referenced in status)
+    const filteredTrends = trendSearch.trim()
+      ? trends.filter(t =>
+          t.title.toLowerCase().includes(trendSearch.toLowerCase()) ||
+          (t.summary || '').toLowerCase().includes(trendSearch.toLowerCase())
+        )
+      : trends
+
     // Toolbar & header (always visible)
     const headerHtml = `
       <button class="back-btn" onclick="navigate('')">← Back to articles</button>
@@ -691,8 +724,15 @@ async function renderAdmin() {
           </select>
         </div>
         <span class="fetch-status">
-          ${fetching ? '⏳ Fetching from Google Trends PH…' : `${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded`}
+          ${fetching ? '⏳ Fetching from Google Trends PH…' : trendSearch ? `${filteredTrends.length}/${trends.length} trends` : `${trends.length} trend${trends.length !== 1 ? 's' : ''} loaded`}
         </span>
+      </div>
+
+      <div class="trend-search-bar">
+        <input type="text" class="trend-search-input" placeholder="🔍 Search trends..."
+               value="${escHtml(trendSearch)}"
+               oninput="renderAdmin.__trendSearch(this.value)">
+        ${trendSearch ? `<button class="trend-search-clear" onclick="renderAdmin.__trendSearch('')">✕</button>` : ''}
       </div>
     `
 
@@ -730,10 +770,10 @@ async function renderAdmin() {
                      onchange="renderAdmin.__toggleSelect('${a.id}')">
             </label>
             <div class="article-manage-info">
-              ${isDraft
-                ? `<span class="article-manage-title draft-title">${escHtml(a.title)}</span>`
-                : `<a class="article-manage-title" href="#/article/${a.slug}" target="_blank">${escHtml(a.title)}</a>`
-              }
+              <span class="article-manage-title ${isDraft ? 'draft-title' : ''}" style="cursor:pointer" onclick="renderAdmin.__openArticle('${a.id}')">
+                ${escHtml(a.title)}
+              </span>
+              ${!isDraft ? `<a href="#/article/${a.slug}" target="_blank" class="manage-view-link" title="View published article">↗</a>` : ''}
               <div class="article-manage-meta">
                 <span class="category-badge-sm ${a.category || 'General'}">${a.category || 'General'}</span>
                 <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
@@ -772,8 +812,11 @@ async function renderAdmin() {
       articlesHtml = `<p class="admin-empty-note">No articles yet. Generate one from a trend above.</p>`
     }
 
-    const trendCards = trends.length
-      ? trends.map(t => `
+    const trendCards = filteredTrends.length
+      ? (trendSearch && trends.length > filteredTrends.length
+          ? `<p class="trend-search-count">${filteredTrends.length} of ${trends.length} trends match</p>`
+          : ''
+        ) + filteredTrends.map(t => `
         <div class="trend-card ${hasEditor ? 'trend-card-compact' : ''}" data-category="${t.category || 'General'}">
           <div class="trend-info">
             <div class="trend-top">
@@ -790,7 +833,7 @@ async function renderAdmin() {
           </button>
         </div>
       `).join('')
-      : `<div class="empty-state"><div class="icon">📊</div><h2>No trends yet</h2><p>Click "Fetch Latest PH Trends" to pull trending topics from Google Trends Philippines.</p></div>`
+      : `<div class="empty-state"><div class="icon">${trendSearch ? '🔍' : '📊'}</div><h2>${trendSearch ? 'No matching trends' : 'No trends yet'}</h2><p>${trendSearch ? `No trends match your search. Try different keywords.` : 'Click "Fetch Latest PH Trends" to pull trending topics from Google Trends Philippines.'}</p></div>`
 
     // ── Editor section ──
     let editorHtml = ''
@@ -833,16 +876,25 @@ async function renderAdmin() {
 
             <!-- Content -->
             <div class="editor-field">
-              <label>
-                Content
-                <span class="word-counter" style="color:${contentColor}">${contentWords} words</span>
-              </label>
-              <textarea class="editor-textarea editor-textarea-lg"
-                        placeholder="Write your article here... Use **bold** for emphasis"
-                        oninput="renderAdmin.__updateField('content', this.value, this)">${escHtml(d.content || '')}</textarea>
+              <div class="editor-field-top">
+                <label>
+                  Content
+                  <span class="word-counter" style="color:${contentColor}">${contentWords} words</span>
+                </label>
+                <div class="editor-tabs">
+                  <button class="editor-tab ${!previewMode ? 'active' : ''}" onclick="renderAdmin.__togglePreview()">✏️ Edit</button>
+                  <button class="editor-tab ${previewMode ? 'active' : ''}" onclick="renderAdmin.__togglePreview()">👁️ Preview</button>
+                </div>
+              </div>
+              ${!previewMode
+                ? `<textarea class="editor-textarea editor-textarea-lg"
+                          placeholder="Write your article here... Use **bold** for emphasis"
+                          oninput="renderAdmin.__updateField('content', this.value, this)">${escHtml(d.content || '')}</textarea>`
+                : `<div class="editor-preview">${renderMarkdown(d.content || '')}</div>`
+              }
               <div class="editor-hint">
                 ${contentWords < 300 ? `📝 ${contentWords} words — aim for 300+` : contentWords > 700 ? `📝 ${contentWords} words — consider trimming to ~700` : `✅ ${contentWords} words — good length`}
-                <span style="margin-left:12px;color:var(--text-muted);font-weight:400">**text** → bold</span>
+                ${!previewMode ? `<span style="margin-left:12px;color:var(--text-muted);font-weight:400">**text** → bold</span>` : ``}
               </div>
             </div>
 
@@ -1012,6 +1064,7 @@ async function renderAdmin() {
   renderAdmin.__handleTags = handleTagsInput
   renderAdmin.__save = handleSave
   renderAdmin.__publish = handlePublish
+  renderAdmin.__togglePreview = () => { previewMode = !previewMode; render() }
   renderAdmin.__closeEditor = handleCloseEditor
   renderAdmin.__generateImage = handleGenerateImage
   renderAdmin.__useGeneratedImage = handleUseGeneratedImage
@@ -1021,6 +1074,8 @@ async function renderAdmin() {
   renderAdmin.__selectAll = handleSelectAll
   renderAdmin.__deleteSelected = handleDeleteSelected
   renderAdmin.__clearSelection = () => { selectedIds = new Set(); render() }
+  renderAdmin.__trendSearch = (value) => { trendSearch = value; render() }
+  renderAdmin.__openArticle = openArticleInEditor
 
   renderAdmin.__removePhoto = () => {
     uploadedImageUrl = null

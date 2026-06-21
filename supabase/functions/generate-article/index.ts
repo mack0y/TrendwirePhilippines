@@ -48,35 +48,69 @@ serve(async (req) => {
       structure = `ENGAGING EXPLAINER. Sections: HEADLINE(65 chars) → HOOK(surprising fact/question) → WHAT'S THIS ABOUT(key facts) → THE CONTEXT(background) → WHY FILIPINOS CARE(local angle) → WHAT'S NEXT → BOTTOM LINE. NO section labels in output.`
     }
 
-    const paragraphRule = `FORMATTING RULES:
-- Separate paragraphs with TWO newlines (\n\n). NEVER use single \n between paragraphs.
-- Each paragraph should be 2-4 sentences.
-- Use **bold** SPARINGLY — only for the most important 1-2 key phrases per article. Never bold entire sentences.
-- Never use bullet points, numbered lists, or headings. Only paragraphs and bold text.`
+    const paragraphRule = `FORMATTING:
+- Separate paragraphs with TWO newlines (\n\n). Each paragraph should be 2-4 sentences.
+- Use **bold** to emphasize key phrases naturally — aim for 3-6 bolded items per article.
+- Use paragraphs and bold text only. No bullet points, numbered lists, or headings.`
 
+    const fewShotExample = `EXAMPLE (style reference):
 
+Topic: Jordan Clarkson One Win Away From Filipino NBA History
+Category: Sports
+Summary: The New York Knicks lead the San Antonio Spurs 3-1 in the 2026 NBA Finals after a record-breaking 29-point comeback. Jordan Clarkson is on the verge of becoming the first player of Filipino ancestry to win an NBA championship.
 
-    const prompt = `You are a top Filipino journalist writing for TrendWire Philippines.
+Output:
+{
+  "title": "Jordan Clarkson One Win Away From Filipino NBA History",
+  "summary": "The New York Knicks lead the San Antonio Spurs 3-1 in the 2026 NBA Finals after a record-breaking 29-point comeback. Jordan Clarkson is on the verge of becoming the first player of Filipino ancestry to win an NBA championship.",
+  "content": "The New York Knicks are one win away from an NBA championship, and the entire Philippines is watching.\\n\\n**Jordan Clarkson**, the Filipino-American guard who has long been a source of national pride, is on the cusp of making history. If the Knicks close out the San Antonio Spurs in Game 5 at Madison Square Garden on June 14, Clarkson becomes the **first player of Filipino ancestry to ever win an NBA title**.\\n\\nThe Knicks took a commanding 3-1 series lead after pulling off the **biggest comeback in NBA Finals history** — erasing a 29-point deficit in Game 4.\\n\\n**The Philippines has fully embraced Clarkson as one of their own.** He suited up for Gilas Pilipinas at the 2018 Asian Games, where he averaged a jaw-dropping 26 points per game.",
+  "seo_description": "Jordan Clarkson and the Knicks are one win away from the 2026 NBA title. Victory would make Clarkson the first Filipino-American NBA champion.",
+  "tags": ["Jordan Clarkson", "NBA Finals 2026", "Filipino basketball", "New York Knicks"],
+  "image_prompt": "A dramatic wide shot of Madison Square Garden at night during an NBA Finals game"
+}`
 
-Topic: ${trend.title}
-Category: ${cat}
-Summary: ${trend.summary}
+    const prompt = `<persona>
+You are a senior correspondent for TrendWire Philippines, a digital news publication serving millions of Filipino readers. Your voice is conversational but authoritative — like a knowledgeable friend explaining a complex story. Write for mobile-first readers who skim headlines and read in short bursts.
+</persona>
+
+<context>
+TOPIC: ${trend.title}
+CATEGORY: ${cat}
+SUMMARY: ${trend.summary}
 
 SOURCES:
 ${srcText}
+</context>
 
-RULE: Do NOT mention Google Trends, search traffic, or trending data. The article is about the story itself.
+<rules>
+- Write about the story itself — NOT about "trending" topics or "search data"
+- Do not mention Google Trends, search volume, or traffic metrics
+- Base every factual claim on the provided sources. If sources don't support a claim, omit it rather than speculate
+</rules>
 
+<thinking>
+Before writing, briefly plan:
+1. Core narrative angle — what's the story really about?
+2. 3-5 key facts the article must include
+3. The local Filipino angle — why should Filipinos care about this?
+</thinking>
+
+<structure>
 ${structure}
+</structure>
 
+<formatting>
 ${paragraphRule}
 
-WRITING: Conversational Filipino English. Short paragraphs (2-4 sentences). Bold key points with **bold**. 300-700 words. Never sound like a textbook. Every paragraph hooks the next.
+Style: Conversational Filipino English. Short paragraphs, each making the reader want to read the next. Target 300-700 words. Never sound like a textbook.
+</formatting>
 
-Also generate an image_prompt (30-80 words, DALL-E/Midjourney ready, NO text in image, matches tone).
+<example>
+${fewShotExample}
+</example>
 
-Output JSON only:
-{"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article markdown","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"DALL-E prompt here"}`
+Respond with valid JSON only (no markdown, no code fences):
+{"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"DALL-E prompt here"}`
 
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
