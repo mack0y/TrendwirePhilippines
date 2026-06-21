@@ -17,7 +17,7 @@ Google Trends PH RSS ──┐
                         ├──>  fetch-multi-sources (Deno)  ──>  trends table (Supabase)
 Rappler RSS ───────────┘          │
                                   ├─ dedup + score cross-source
-                                  └─ Telegram alerts (score ≥ 70)
+                                  └─ Telegram alerts (score ≥ 50)
                                                                    │
                                                                    ▼
                                                            generate-article (Deno)
@@ -299,6 +299,12 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **SUPABASE_ANON_KEY** — Added to GitHub secrets for the auto-fetch workflow
 - **Function verified** — Tested successfully: 20 unique trends fetched, 12 new saved, 1 Telegram alert sent (earthquake)
 
+### Landing Page Sidebar & Weather Widget (2026-06-22)
+- **🌤️ Weather Widget** — Fetches Manila weather from wttr.in (free, no API key) displayed in a blue gradient card with temp, conditions, humidity, wind, feels-like. Loads in background on page load; updates in-place without full re-render.
+- **🔥 Trending Now Sidebar** — Top 10 trends ranked by impact score, numbered 1-10 with gold/silver/bronze badges. Click any trend → navigates to `/admin` to write an article. Sticky on desktop, responsive on tablet/mobile.
+- **Layout** — `.landing-layout` flex container with `.landing-main` + `.landing-sidebar`. Desktop: sidebar sticks on scroll. Tablet (≤1024px): sidebar becomes 2-column grid. Mobile (≤640px): single column.
+- **Telegram alert threshold lowered** — Changed from ≥70 to ≥50, tested successfully (3 alerts sent vs 0-1 before).
+
 ### Post-Launch Fixes (2026-06-21)
 - **Pollinations cache-bust** — Added `_=${Date.now()}` to image URL so Regenerate produces a new image
 - **Word count relaxed** — Lowered minimum from 400→300, raised max from 700→900
@@ -346,6 +352,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v14 | Dynamic Newsroom landing page: hero carousel, reading progress, sliding category tabs, masonry grid, load more |
 | v15 | Image prompt fine-tuning: Pollinations optimized prompts, style tags, model=flux, cache-bust fix |
 | v16 | Full code audit: CSS conflict fix, Twitter meta fix, Telegram link fix, dead CSS removed, MEMORY.md cleanup |
+| v17 | Weather widget + trending sidebar on landing page, Telegram threshold 70→50 |
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy
@@ -440,7 +447,7 @@ This tests: connection → fetch trends → get latest trend → generate articl
 supabase functions deploy fetch-trends --project-ref nvxykufajzppjtkmbtte
 supabase functions deploy fetch-multi-sources --project-ref nvxykufajzppjtkmbtte
 supabase functions deploy generate-article --project-ref nvxykufajzppjtkmbtte
-supabase functions deploy rapid-processor --project-ref nvxykufajzppjtkmbtte
+supabase functions deploy admin-operations --project-ref nvxykufajzppjtkmbtte
 
 # 2. Run migrations (if new)
 # Open https://supabase.com/dashboard/project/nvxykufajzppjtkmbtte/sql/new
