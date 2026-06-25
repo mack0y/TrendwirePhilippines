@@ -102,7 +102,7 @@ ${structure}
 <formatting>
 ${paragraphRule}
 
-Style: Conversational Filipino English. Short paragraphs, each making the reader want to read the next. Target 300-700 words. Never sound like a textbook.
+Style: Conversational Filipino English. Short paragraphs, each making the reader want to read the next. Target 350 words. Never sound like a textbook.
 </formatting>
 
 <example>

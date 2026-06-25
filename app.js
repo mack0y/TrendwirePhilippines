@@ -1458,11 +1458,11 @@ async function renderAdmin() {
     // Validate content before publishing
     const words = (editorDraft.content || '').trim().split(/\s+/).filter(Boolean).length
     if (words < 300) {
-      showToast(`⚠️ Content too short (${words} words). Aim for at least 300 words.`, 'error')
+      showToast(`⚠️ Content too short (${words} words). Aim for at least 350 words.`, 'error')
       return
     }
-    if (words > 900) {
-      showToast(`⚠️ Content too long (${words} words). Consider trimming to ~700 words.`, 'error')
+    if (words > 500) {
+      showToast(`⚠️ Content too long (${words} words). Consider trimming to ~350 words.`, 'error')
       return
     }
 
@@ -1662,7 +1662,7 @@ async function renderAdmin() {
       if (wc && field === 'content') {
         const words = value.trim().split(/\s+/).filter(Boolean).length
         wc.textContent = `${words} words`
-        wc.style.color = (words >= 300 && words <= 900) ? '#2e7d32' : '#c62828'
+        wc.style.color = (words >= 300 && words <= 500) ? '#2e7d32' : '#c62828'
       }
     }
   }
@@ -1858,7 +1858,7 @@ async function renderAdmin() {
     if (hasEditor) {
       const d = editorDraft
       const contentWords = (d.content || '').trim().split(/\s+/).filter(Boolean).length
-      const contentColor = (contentWords >= 300 && contentWords <= 900) ? '#2e7d32' : '#c62828'
+      const contentColor = (contentWords >= 300 && contentWords <= 500) ? '#2e7d32' : '#c62828'
 
       const tagsList = (d.tags || '').split(',').map(t => t.trim()).filter(Boolean)
 
@@ -1911,7 +1911,7 @@ async function renderAdmin() {
                 : `<div class="editor-preview">${renderMarkdown(d.content || '')}</div>`
               }
               <div class="editor-hint">
-                ${contentWords < 300 ? `📝 ${contentWords} words — aim for 300+` : contentWords > 700 ? `📝 ${contentWords} words — consider trimming to ~700` : `✅ ${contentWords} words — good length`}
+                ${contentWords < 300 ? `📝 ${contentWords} words — aim for 350` : contentWords > 500 ? `📝 ${contentWords} words — consider trimming to ~350` : `✅ ${contentWords} words — good length`}
                 ${!previewMode ? `<span style="margin-left:12px;color:var(--text-muted);font-weight:400">**text** → bold</span>` : ``}
               </div>
             </div>
