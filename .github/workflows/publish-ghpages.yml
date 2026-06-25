@@ -38,8 +38,11 @@ jobs:
           python scripts/publish-article.py --latest
 
       - name: Commit & push changes
-        uses: stefanzweifel/git-auto-commit-action@v5
-        with:
-          commit_message: "📢 Publish latest trend article"
-          branch: main
-          token: ${{ secrets.PAT_TOKEN }}
+        run: |
+          git config user.name "mack0y"
+          git config user.email "mackoysemailadd@gmail.com"
+          git add -A
+          git diff --staged --quiet || (
+            git commit -m "📢 Publish latest trend article"
+            git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/${{ github.repository }}.git main
+          )
