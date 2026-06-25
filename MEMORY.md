@@ -157,6 +157,7 @@ Rappler RSS ───────────┘          │
 | `TELEGRAM_BOT_TOKEN` | `fetch-multi-sources` function | ❌ (alerts skipped if not set) |
 | `TELEGRAM_CHAT_ID` | `fetch-multi-sources` function | ❌ (alerts skipped if not set) |
 | `SITE_URL` | `fetch-multi-sources` function (default: GitHub Pages URL) | ❌ |
+| `PAT_TOKEN` | GitHub Actions workflows (push to main) | ✅ (for workflows that commit) |
 
 ### Frontend (public, embedded in app.js)
 - `SUPABASE_URL` — `https://nvxykufajzppjtkmbtte.supabase.co`
@@ -168,13 +169,29 @@ Rappler RSS ───────────┘          │
 
 ### `publish-ghpages.yml`
 - **Trigger:** Push to `main` or `workflow_dispatch`
-- **Steps:** Checkout → Setup Python → Install `supabase` → Run `publish-article.py --latest` → Commit changes
-- **Secrets:** `SUPABASE_SERVICE_KEY`, `SUPABASE_URL`
+- **Steps:** Checkout (with PAT) → Setup Python → Install `supabase` → Run `publish-article.py --latest` → Commit & push via `git push` with PAT
+- **Secrets:** `SUPABASE_SERVICE_KEY`, `SUPABASE_URL`, `PAT_TOKEN`
+- **Note:** Uses raw `git push` with `x-access-token` PAT authentication (not `stefanzweifel/git-auto-commit-action`) to bypass branch protection
 
 ### `publish-article.yml`
 - **Trigger:** `workflow_dispatch` or `repository_dispatch`
 - **Steps:** Same as above but accepts optional `article_file` and `trend_id` inputs
 - **Note:** Also triggers a GitHub Pages deployment
+
+### `generate-seo-assets.yml`
+- **Trigger:** Cron every 6 hours or `workflow_dispatch`
+- **Steps:** Checkout (with PAT) → Setup Python → Generate `sitemap.xml` + `feed.xml` → Commit & push via PAT
+- **Secrets:** `SUPABASE_SERVICE_KEY`, `SUPABASE_URL`, `PAT_TOKEN`
+
+### `generate-sitemap.yml`
+- **Trigger:** Daily at 3AM PHT (7PM UTC) or `workflow_dispatch`
+- **Steps:** Checkout (with PAT) → Generate static `sitemap.xml` → Commit & push via PAT
+- **Secrets:** `PAT_TOKEN`
+
+### `fetch-lotto-results.yml`
+- **Trigger:** Cron hourly (6AM–2PM UTC) or `workflow_dispatch`
+- **Steps:** Checkout → Setup Python → Run `fetch-lotto-results.py`
+- **Secrets:** `SUPABASE_SERVICE_KEY`, `SUPABASE_URL`
 
 ### `auto-fetch-trends.yml`
 - **Trigger:** Cron every 30 minutes (`*/30 * * * *`) or `workflow_dispatch`
@@ -194,7 +211,7 @@ Rappler RSS ───────────┘          │
 - Fetches from **Google Trends PH RSS** + **Rappler RSS** simultaneously
 - **Deduplicates** across sources using smart title similarity matching (word overlap ≥ 60%)
 - **Boosts** impact scores when the same topic appears in multiple sources (+15 per extra source)
-- **Telegram alerts** sent for high-impact trends (score ≥ 70) with category, score, source count, and admin link
+- **Telegram alerts** sent for high-impact trends (score ≥ 50) with category, score, source count, and admin link
 - Categorizes into 8 categories: General, Sports, Politics, Disaster, Economy, Health, Technology, Entertainment
 - Gracefully degrades if Telegram secrets are not set (skips alerts)
 
@@ -242,7 +259,7 @@ When the editor is open, the admin splits into two columns:
 |-------|----------|
 | **Title** | Text input, live 65-char counter |
 | **Summary** | Textarea, live 160-char counter |
-| **Content** | Large textarea with ✏️ Edit / 👁️ Preview toggle tabs; Preview mode shows rendered HTML via `renderMarkdown()`; live word count (300–900 range indicator), `**text** → bold` hint in Edit mode |
+| **Content** | Large textarea with ✏️ Edit / 👁️ Preview toggle tabs; Preview mode shows rendered HTML via `renderMarkdown()`; live word count (300–500 range indicator), `**text** → bold` hint in Edit mode |
 | **Category** | Dropdown (General, Sports, Politics, Disaster, Economy, Health, Technology, Entertainment) |
 | **Tags** | Text input, comma-separated, live preview as pills |
 | **SEO Description** | Textarea, live 155-char counter |
@@ -272,7 +289,7 @@ Below the trends list, the admin dashboard shows **Published Articles** and **Dr
 
 ### Content Validation (frontend)
 - Title: max 65 characters (enforced by maxlength + visual counter)
-- Content: 300–900 words (green indicator, blocks publish if <300 or >900)
+- Content: 300–500 words (green indicator, blocks publish if <300 or >500)
 - Photo: required before publishing (publish button disabled)
 
 ---
@@ -314,7 +331,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **Color thresholds aligned** — Word counter green from 300–900 words (was 400–700)
 - **Markdown rendering** — Added `renderMarkdown()` function that converts `**text**` → `<strong>`, handles `\n\n` + `\n` line breaks, strips unmatched `**`
 - **`**text** → bold` hint** — Added note below editor content field explaining markdown syntax
-- **Prompt updated** — LLM prompt word count changed from 400–700 to 300–700, added explicit formatting rules (use `\n\n`, bold sparingly, no lists)
+- **Prompt updated** — LLM prompt word count changed to target 350 words, added explicit formatting rules (use `\n\n`, bold sparingly, no lists)
 - **Default model** — Changed from `openrouter/owl-alpha` to `openrouter/free`
 - **Delete article** — Added `delete-article` action to Edge Function + single delete button per article
 - **Bulk delete** — Added `delete-articles` action (accepts `ids[]`), checkboxes, Select All, Delete Selected bulk bar
@@ -412,7 +429,8 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v23 | SEO overhaul: NewsArticle schema, OG tags, robots.txt, sitemap, preload hints |
 | v24 | Internal linking: breadcrumbs, clickable tags, related articles, crawlable links |
 | v25 | Fix syntax error: close unclosed forEach callback |
-| v26 | Fix image upload: deploy Edge Functions, URL-based upload to avoid body size limit
+| v26 | Fix image upload: deploy Edge Functions, URL-based upload to avoid body size limit |
+| v27 | Fix GitHub Actions push permissions (PAT_TOKEN), word count target 350, raw shell git push |
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy
@@ -432,7 +450,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - ✅ **Edge Function DB mismatch** — `fetch-trends` was using wrong columns, fixed to match live DB
 - ✅ **Impact score falsy bug** — Fixed `t.impact_score != null` check
 - ✅ **Tag XSS** — Tag preview in editor now uses `escHtml()` escaping
-- ✅ **Content validation** — Frontend blocks publish if content is <400 or >700 words
+- ✅ **Content validation** — Frontend blocks publish if content is <300 or >500 words
 
 ### Watch Out For
 - **OpenRouter rate limit** — The free tier has a daily request cap. When exceeded, generation returns "Rate limit exceeded: free-models-per-day. Add $5 to unlock 1000 free requests/day."
@@ -484,7 +502,7 @@ python scripts/publish-article.py --latest --dry-run
 
 ### Validation Rules
 - Title: max 65 characters
-- Content: 400–700 words
+- Content: 300–500 words
 - No forbidden phrases: "Google Trends", "search volume", "trending data", "Filipinos are searching"
 
 ---
