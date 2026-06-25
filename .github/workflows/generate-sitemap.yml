@@ -13,6 +13,8 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Generate sitemap.xml
         run: |
@@ -34,4 +36,4 @@ jobs:
           git config user.email "bot@trendwire.ph"
           git add sitemap.xml
           git diff --staged --quiet || git commit -m "Update sitemap.xml [automated]"
-          git push origin main
+          git push https://x-access-token:${{ secrets.PAT_TOKEN }}@github.com/mack0y/TrendwirePhilippines.git main

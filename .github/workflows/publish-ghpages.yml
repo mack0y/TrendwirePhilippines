@@ -17,6 +17,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_TOKEN }}
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -40,3 +42,4 @@ jobs:
         with:
           commit_message: "📢 Publish latest trend article"
           branch: main
+          token: ${{ secrets.PAT_TOKEN }}
