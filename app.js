@@ -101,6 +101,7 @@ window.addEventListener('popstate', handleRoute)
 function navigate(path) {
   const url = BASE_PATH + path
   history.pushState(null, '', url)
+  window.scrollTo(0, 0)
   handleRoute()
 }
 
@@ -227,6 +228,8 @@ function updateSeoForArticle(article) {
   setMeta('article:published_time', pubDate)
   setMeta('article:modified_time', modDate)
   setMeta('article:section', article.category || 'General')
+  // Remove old article:tag metas to prevent accumulation on re-render
+  document.querySelectorAll('meta[property="article:tag"]').forEach(function(el) { el.remove() })
   tags.forEach(function(tag) { setMeta('article:tag', tag) })
 
   // NewsArticle schema (Google-preferred for news content)
@@ -292,7 +295,7 @@ async function fetchArticles() {
     .select('id, title, slug, summary, category, tags, published_at, created_at, image_url')
     .eq('status', 'published')
     .order('published_at', { ascending: false })
-    .limit(20)
+    .limit(100)
 
   if (error) throw error
   return data || []
@@ -666,10 +669,8 @@ async function loadMoreArticles() {
   var btn = document.querySelector('.load-more-btn')
   if (btn) btn.disabled = true
   try {
-    var from = loadedCount
-    var to = from + 6
-    var newArticles = await fetchArticlesRange(from, to - 1)
-    if (newArticles.length === 0) {
+    var nextCount = Math.min(loadedCount + 6, articles.length)
+    if (nextCount <= loadedCount) {
       hasMoreArticles = false
       var wrap = document.querySelector('.load-more-wrap')
       if (wrap) {
@@ -677,15 +678,7 @@ async function loadMoreArticles() {
       }
       return
     }
-    // Filter out already loaded articles by slug
-    var existingSlugs = new Set(articles.map(function(a) { return a.slug }))
-    var unique = newArticles.filter(function(a) { return !existingSlugs.has(a.slug) })
-    if (unique.length === 0) {
-      hasMoreArticles = false
-      return
-    }
-    articles = articles.concat(unique)
-    loadedCount += unique.length
+    loadedCount = nextCount
     renderArticlesGrid()
   } catch (e) {
     console.error('Failed to load more:', e)
@@ -693,18 +686,6 @@ async function loadMoreArticles() {
     isLoadingMore = false
     if (btn) btn.disabled = false
   }
-}
-
-async function fetchArticlesRange(from, to) {
-  if (!sb) throw new Error('Supabase not initialized')
-  var { data, error } = await sb
-    .from('articles')
-    .select('id, title, slug, summary, category, tags, published_at, created_at, image_url')
-    .eq('status', 'published')
-    .order('published_at', { ascending: false })
-    .range(from, to)
-  if (error) throw error
-  return data || []
 }
 
 // ── Lotto Results ────────────────────────────────────
@@ -858,7 +839,7 @@ function renderWeatherWidget() {
     return '<div class="weather-card"><div class="weather-loading">⏳ Loading weather…</div></div>'
   }
   if (!weatherData) {
-    return '<div class="weather-error">🌤️ Weather unavailable</div>'
+    return '<div class="weather-error">🌤️ Weather unavailable <button class="weather-retry-btn" onclick="window.__retryWeather()">↻ Retry</button></div>'
   }
   var emoji = getWeatherEmoji(weatherData.code)
   var locLabel = weatherLocation || 'Unknown location'
@@ -948,6 +929,8 @@ function renderCategoryTabs(categories) {
 window.__catFilterTab = function(cat) {
   categoryFilter = cat
   tagFilter = ''
+  var url = BASE_PATH + '/' + (cat ? '?category=' + encodeURIComponent(cat) : '')
+  history.pushState(null, '', url)
   renderArticlesGrid()
 }
 
@@ -1025,8 +1008,8 @@ function renderArticlesGrid() {
     gridHtml += '<div class="card-meta"><span>📅 ' + formatDate(a.published_at || a.created_at) + '</span><span>📖 ' + Math.max(1, Math.ceil((a.summary || '').split(/\s+/).filter(Boolean).length / 50)) + ' min</span></div>'
     gridHtml += '</div>'
     gridHtml += '</a></div>'
-  gridHtml += '</div>'
   })
+  gridHtml += '</div>'
 
   // Load more button
   var hasMore = filtered.length > displayArticles.length
@@ -1072,7 +1055,7 @@ async function renderList() {
     if (!articles.length) {
       articles = await fetchArticles()
       loadedCount = Math.min(6, articles.length)
-      hasMoreArticles = articles.length >= 20
+      hasMoreArticles = articles.length > loadedCount
     }
 
     if (!articles.length) {
@@ -1244,11 +1227,11 @@ async function renderAdmin() {
   let previewMode = false
   let publishedResult = null
 
-  let selectedModel = 'openrouter/free'
+  let selectedModel = 'poolside/laguna-xs-2.1:free'
 
   const MODELS = [
+    { id: 'poolside/laguna-xs-2.1:free', label: 'Laguna XS 2.1 (free)' },
     { id: 'openrouter/free', label: 'OpenRouter Free (auto)' },
-    { id: 'openrouter/owl-alpha', label: 'Owl Alpha' },
     { id: 'deepseek/deepseek-v4-flash', label: 'DeepSeek V4 Flash' },
   ]
 
@@ -1415,6 +1398,14 @@ async function renderAdmin() {
       uploadedImageUrl = article.image_url || null
       generating = null
       render()
+      const wc = (article.content || '').trim().split(/\s+/).filter(Boolean).length
+      if (wc < 300) {
+        showToast(`⚠️ Generated content is only ${wc} words — try regenerating or expand manually before publishing.`, 'error')
+      } else if (wc < 350) {
+        showToast(`📝 ${wc} words — close to the 350 minimum. Consider adding more detail.`, 'info')
+      } else {
+        showToast(`✅ ${wc} words — ready for review!`, 'success')
+      }
     } catch (e) {
       generating = null
       showToast('❌ Failed to generate: ' + e.message, 'error')
@@ -1457,12 +1448,12 @@ async function renderAdmin() {
 
     // Validate content before publishing
     const words = (editorDraft.content || '').trim().split(/\s+/).filter(Boolean).length
-    if (words < 300) {
-      showToast(`⚠️ Content too short (${words} words). Aim for at least 350 words.`, 'error')
+    if (words < 350) {
+      showToast(`⚠️ Content too short (${words} words). Minimum is 350 words.`, 'error')
       return
     }
     if (words > 500) {
-      showToast(`⚠️ Content too long (${words} words). Consider trimming to ~350 words.`, 'error')
+      showToast(`⚠️ Content too long (${words} words). Maximum is 500 words.`, 'error')
       return
     }
 
@@ -1529,19 +1520,34 @@ async function renderAdmin() {
 
   function enhanceImagePrompt(rawPrompt) {
     var enhanced = rawPrompt.trim()
-    // Add Philippine context if the prompt is short and generic (check BEFORE appending style tags)
-    var locationHints = ['philippine', 'filipino', 'manila', 'ph', 'pinoy', 'cebu', 'davao', 'metro manila']
-    var hasLocation = locationHints.some(function(h) { return enhanced.toLowerCase().includes(h) })
-    if (!hasLocation && enhanced.length < 60) {
-      var first = enhanced.charAt(0)
-      enhanced = 'Philippine ' + (first === first.toUpperCase() ? first.toLowerCase() + enhanced.slice(1) : enhanced)
+    // Remove any style tags the LLM may have slipped in despite instructions
+    var stripTags = ['photojournalism', 'editorial photography', 'documentary style', 'sharp focus', 'high resolution', 'digital art', 'illustration', 'cinematic', 'masterpiece', '4k', 'trending']
+    var promptLower = enhanced.toLowerCase()
+    for (var s = 0; s < stripTags.length; s++) {
+      while (promptLower.indexOf(stripTags[s]) !== -1) {
+        enhanced = enhanced.slice(0, promptLower.indexOf(stripTags[s])) +
+          enhanced.slice(promptLower.indexOf(stripTags[s]) + stripTags[s].length)
+        promptLower = enhanced.toLowerCase()
+      }
     }
-    // Auto-append news photography style tags if not already present
-    var styleTags = ['photojournalism', 'editorial photography', 'documentary style', 'sharp focus', 'high resolution']
-    var hasStyle = styleTags.some(function(tag) { return enhanced.toLowerCase().includes(tag) })
-    if (!hasStyle) {
-      enhanced += ', ' + styleTags.join(', ')
+    // Clean up double commas and whitespace from removed tags
+    enhanced = enhanced.split(',').map(function(s) { return s.trim() }).filter(function(s) { return s }).join(', ')
+
+    if (!enhanced) {
+      enhanced = 'Philippine news scene'
     }
+
+    // Check if location context already present — covers cities, regions, and Filipino cultural terms
+    var locationPatterns = /\b(philippine|philippines|filipino|pilipinas|manila|cebu|davao|pinoy|tagalog|bisaya|mindanao|visayas|luzon|makati|quezon|pasig|taguig|pasay|mandaluyong|paranaque|baguio|iloilo|bacolod|zamboanga|palawan|boracay|siargao|bohol|leyte|jeepney|barangay|pagasa|nbi|pnp|sari.sari|gilas)\b/i
+    if (!locationPatterns.test(enhanced)) {
+      // Prepend "Philippine " only if prompt starts with a lowercase word (not a name)
+      var firstChar = enhanced.charAt(0)
+      if (firstChar >= 'a' && firstChar <= 'z') {
+        enhanced = 'Philippine ' + enhanced
+      }
+    }
+    // Auto-append news photography style tags — reduces what the LLM needs to produce
+    enhanced += ', photojournalism, editorial photography, documentary style, sharp focus, high resolution'
     return enhanced
   }
 
@@ -1662,7 +1668,7 @@ async function renderAdmin() {
       if (wc && field === 'content') {
         const words = value.trim().split(/\s+/).filter(Boolean).length
         wc.textContent = `${words} words`
-        wc.style.color = (words >= 300 && words <= 500) ? '#2e7d32' : '#c62828'
+        wc.style.color = (words >= 350 && words <= 500) ? '#2e7d32' : '#c62828'
       }
     }
   }
@@ -1848,7 +1854,7 @@ async function renderAdmin() {
           <p class="modal-article-title">${escHtml(publishedResult.title)}</p>
           <p class="modal-subtitle">Your article is now live on TrendWire Philippines.</p>
           <div class="modal-actions">
-            <a class="modal-btn modal-btn-primary" href="${BASE_PATH}/article/${publishedResult.slug}" target="_blank">👁️ View Article</a>
+            <a class="modal-btn modal-btn-primary" href="${BASE_PATH}/article/${publishedResult.slug}" target="_blank" rel="noopener noreferrer">👁️ View Article</a>
             <button class="modal-btn modal-btn-secondary" onclick="renderAdmin.__publishContinueEdit()">✏️ Continue Editing</button>
             <button class="modal-btn modal-btn-ghost" onclick="renderAdmin.__publishClose()">Close</button>
           </div>
@@ -1858,7 +1864,7 @@ async function renderAdmin() {
     if (hasEditor) {
       const d = editorDraft
       const contentWords = (d.content || '').trim().split(/\s+/).filter(Boolean).length
-      const contentColor = (contentWords >= 300 && contentWords <= 500) ? '#2e7d32' : '#c62828'
+      const contentColor = (contentWords >= 350 && contentWords <= 500) ? '#2e7d32' : '#c62828'
 
       const tagsList = (d.tags || '').split(',').map(t => t.trim()).filter(Boolean)
 
@@ -1911,7 +1917,7 @@ async function renderAdmin() {
                 : `<div class="editor-preview">${renderMarkdown(d.content || '')}</div>`
               }
               <div class="editor-hint">
-                ${contentWords < 300 ? `📝 ${contentWords} words — aim for 350` : contentWords > 500 ? `📝 ${contentWords} words — consider trimming to ~350` : `✅ ${contentWords} words — good length`}
+                ${contentWords < 350 ? `📝 ${contentWords} words — aim for 350-500` : contentWords > 500 ? `📝 ${contentWords} words — max is 500` : `✅ ${contentWords} words — good length`}
                 ${!previewMode ? `<span style="margin-left:12px;color:var(--text-muted);font-weight:400">**text** → bold</span>` : ``}
               </div>
             </div>
@@ -2307,3 +2313,13 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSidebarWidget('.weather-card, .weather-error', renderWeatherWidget)
   })
 })
+
+window.__retryWeather = function() {
+  weatherLoading = true
+  updateSidebarWidget('.weather-card, .weather-error', renderWeatherWidget)
+  getUserLocation().then(function(coords) {
+    return fetchWeather(coords)
+  }).then(function() {
+    updateSidebarWidget('.weather-card, .weather-error', renderWeatherWidget)
+  })
+}

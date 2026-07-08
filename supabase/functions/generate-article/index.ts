@@ -16,7 +16,7 @@ serve(async (req) => {
     const url = Deno.env.get('SUPABASE_URL') ?? ''
     const svcKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const orKey = Deno.env.get('OPENROUTER_API_KEY') ?? ''
-    const orModel = Deno.env.get('OPENROUTER_MODEL') ?? 'openrouter/owl-alpha'
+    const orModel = Deno.env.get('OPENROUTER_MODEL') ?? 'poolside/laguna-xs-2.1:free'
 
     if (!orKey) throw new Error('OPENROUTER_API_KEY not set')
 
@@ -53,7 +53,7 @@ serve(async (req) => {
 - Use **bold** to emphasize key phrases naturally — aim for 3-6 bolded items per article.
 - Use paragraphs and bold text only. No bullet points, numbered lists, or headings.`
 
-    const fewShotExample = `EXAMPLE (style reference):
+    const fewShotExample = `EXAMPLE (style reference — note the word count):
 
 Topic: Jordan Clarkson One Win Away From Filipino NBA History
 Category: Sports
@@ -63,10 +63,10 @@ Output:
 {
   "title": "Jordan Clarkson One Win Away From Filipino NBA History",
   "summary": "The New York Knicks lead the San Antonio Spurs 3-1 in the 2026 NBA Finals after a record-breaking 29-point comeback. Jordan Clarkson is on the verge of becoming the first player of Filipino ancestry to win an NBA championship.",
-  "content": "The New York Knicks are one win away from an NBA championship, and the entire Philippines is watching.\\n\\n**Jordan Clarkson**, the Filipino-American guard who has long been a source of national pride, is on the cusp of making history. If the Knicks close out the San Antonio Spurs in Game 5 at Madison Square Garden on June 14, Clarkson becomes the **first player of Filipino ancestry to ever win an NBA title**.\\n\\nThe Knicks took a commanding 3-1 series lead after pulling off the **biggest comeback in NBA Finals history** — erasing a 29-point deficit in Game 4.\\n\\n**The Philippines has fully embraced Clarkson as one of their own.** He suited up for Gilas Pilipinas at the 2018 Asian Games, where he averaged a jaw-dropping 26 points per game.",
+  "content": "The New York Knicks are one win away from an NBA championship, and the entire Philippines is watching every second of it. Madison Square Garden is electrified, and millions of Filipino fans from Manila to Mindanao are staying up past midnight to witness history in the making.\\n\\n**Jordan Clarkson**, the Filipino-American guard who has long been a source of national pride for the Philippines, is on the cusp of achieving something no one of Filipino ancestry has ever done before. If the Knicks close out the San Antonio Spurs in Game 5 on their home floor, Clarkson will become the **first player of Filipino descent to ever win an NBA championship** — a milestone that would resonate far beyond basketball.\\n\\nThe Knicks took a commanding 3-1 series lead after pulling off the **biggest comeback in NBA Finals history**. Down by 29 points in the third quarter, New York mounted a furious rally capped by a Clarkson three-pointer that sent the Garden into a deafening roar. The comeback has been hailed as one of the greatest moments in NBA playoff history, drawing comparisons to the 2016 Cavaliers' historic reverse sweep.\\n\\n**Clarkson's connection to the Philippines runs deep.** He suited up for Gilas Pilipinas at the 2018 Asian Games in Jakarta, where he averaged a jaw-dropping 26 points per game and instantly became a national icon. His decision to represent the Philippines on the international stage cemented his bond with Filipino basketball fans, who have followed his NBA career ever since. Local basketball courts across the country have murals of Clarkson in both his Knicks jersey and the Gilas uniform, a testament to his dual legacy.\\n\\n**The social media response has been overwhelming.** Philippine Twitter trends have consistently featured Clarkson-related hashtags throughout the Finals, with fans sharing videos of watch parties in barangays, universities, and even inside jeepneys equipped with small televisions. The Philippine Basketball Association (PBA) has publicly congratulated Clarkson, and several government officials have hinted at a hero's welcome should he return to the country with an NBA ring.\\n\\nGame 5 tips off at 8 PM Manila time on June 14 at Madison Square Garden. If the Knicks win, Clarkson will not only be an NBA champion but also a permanent bridge between the world's biggest basketball league and the country that loves the game more than almost anywhere else on earth.",
   "seo_description": "Jordan Clarkson and the Knicks are one win away from the 2026 NBA title. Victory would make Clarkson the first Filipino-American NBA champion.",
   "tags": ["Jordan Clarkson", "NBA Finals 2026", "Filipino basketball", "New York Knicks"],
-  "image_prompt": "Madison Square Garden packed with Filipino flag-waving fans during NBA Finals Game 5, Jordan Clarkson in Knicks jersey holding the ball, dramatic arena lighting, confetti, photojournalism, editorial photography, documentary style, sharp focus, high resolution"
+  "image_prompt": "freeze-frame of Jordan Clarkson mid-release on a three-pointer, Madison Square Garden crowd on feet waving Filipino flags, arena floodlights, confetti starting to fall"
 }`
 
     const prompt = `<persona>
@@ -86,6 +86,7 @@ ${srcText}
 - Write about the story itself — NOT about "trending" topics or "search data"
 - Do not mention Google Trends, search volume, or traffic metrics
 - Base every factual claim on the provided sources. If sources don't support a claim, omit it rather than speculate
+- CRITICAL: The content field MUST be between 350 and 500 words. Count your words before finalizing. Short articles get rejected.
 </rules>
 
 <thinking>
@@ -102,7 +103,7 @@ ${structure}
 <formatting>
 ${paragraphRule}
 
-Style: Conversational Filipino English. Short paragraphs, each making the reader want to read the next. Target 350 words. Never sound like a textbook.
+Style: Conversational Filipino English. Short paragraphs, each making the reader want to read the next. Aim for 400-500 words, ABSOLUTE MINIMUM is 350 words. Never sound like a textbook.
 </formatting>
 
 <example>
@@ -110,62 +111,118 @@ ${fewShotExample}
 </example>
 
 <image_prompt>
-Generate a single, photorealistic news photo prompt that DIRECTLY illustrates THIS specific article — not a generic scene for the category.
+Generate a single photorealistic news photo prompt for THIS specific article. Style tags will be appended later — focus ALL 20-40 words on scene details only.
 
-STEP 1 — Extract specific visual elements from the article:
-- Who: the key person, group, or subject (name, role, appearance, expression)
-- Where: the exact location or setting (place, environment, time of day)
-- What: the central action or moment happening (not generic — the actual event)
-- Objects: specific props, tools, signs, or items mentioned
+STEP 1 — Extract visual elements:
+- Who: the key subject (name, expression, what they're doing)
+- Where: exact location (place name, environment, time of day)
+- What: the single frozen moment that tells the whole story
+- Background: what fills the frame behind the subject
 
-STEP 2 — Construct the prompt using this formula:
-[Specific subject(s)] + [Specific action/moment] + [Specific setting/environment] + [Time of day/lighting] + [Mood/atmosphere] + [Photojournalism style tags]
+STEP 2 — Composition (choose one):
+- WIDE: "aerial wide shot" or "ground-level wide" — establishes scale and environment
+- MEDIUM: "waist-level medium shot" — subject + context
+- CLOSE: "close-up" or "tight portrait" — emotion and detail
+- ACTION: "freeze-frame" or "mid-action capture" — peak moment
+
+STEP 3 — Apply category-specific visual rules:
+- Disaster: wide shot, rescue/response personnel in frame, damage/aftermath visible, overcast or emergency lighting
+- Sports: freeze-frame peak action, athlete in motion with expression, crowd or venue in background, stadium floodlights
+- Politics/Government: podium or press conference framing, flag or institutional backdrop, speaker at lectern or crowd reaction
+- Business/Economy: interior workspace shot, person at desk/screen, professional ambient lighting, documents or data in frame
+- Health: clinical/clean setting, medical workers or patients, natural or fluorescent lighting, equipment visible
+- Entertainment: red carpet or stage lighting, subject in spotlight, vibrant colors, crowd or press in background
+- Crime/Legal: courthouse or police line exterior, aftermath clean-up, evidence markers, natural daylight
+- Food/Agriculture: market stall or farm field, fresh produce, golden hour or morning light, seller's hands in frame
+- Education/Science: classroom or lab setting, students/teachers engaged, bright overhead light, books or equipment
+- Technology: device or screen as focal point, user interaction, cool blue/white ambient light, modern interior
+- General: street-level realism, candid everyday moment, soft natural light
+
+Step 4 — Lighting by setting:
+- Outdoor day: "overcast soft light, even exposure"
+- Outdoor night: "ambient street/neon light, high contrast shadows"
+- Indoor event: "stage spotlight, warm tungsten light"
+- Indoor workplace: "fluorescent overhead, cool ambient"
+- Emergency/night disaster: "flashlight or floodlight illumination, dark surroundings"
+- Sports: "stadium floodlight, bright even light on subject"
 
 Rules:
-- MUST use specific details from the article — names, places, events. NOT generic descriptions.
-- Write a scene that would be the FRONT PAGE PHOTO for this story.
-- 20-40 words, no quotation marks, no markdown.
-- Style tags MUST end with: "photojournalism, editorial photography, documentary style, sharp focus, high resolution"
-- Style tags MUST NOT include: "masterpiece", "digital art", "illustration", "4k", "trending", "cinematic"
-- For negative/unpleasant topics: show aftermath, response, or symbolic representation — NOT graphic violence or gore
-- If Philippines-specific: include Filipino visual context (Manila street, Philippine flag, Filipino crowd, jeepney, tricycle, sari-sari store, palm trees, etc.)
+- MUST use specific article details — names, places, events. Not generic descriptions.
+- 20-40 words. Do NOT include style tags (they are appended automatically).
+- No quotation marks, no markdown.
+- The prompt must be a single comma-separated phrase, not a sentence.
+- DO NOT include: "masterpiece", "digital art", "illustration", "4k", "trending", "cinematic"
+- For negative/unpleasant topics: show aftermath, response, or symbolic representation — NOT graphic violence
+- Include Filipino visual context where relevant (jeepney, tricycle, sari-sari store, Philippine flag, street food vendor, plaza, basketball court, palm trees)
 
-BAD example (generic — DON'T do this):
-"A basketball game with crowd cheering, arena lights, photojournalism, editorial photography, documentary style, sharp focus, high resolution"
+BAD examples (generic — DON'T do this):
+"a basketball game with crowd cheering"
+"flooded street in Manila"
+"a politician speaking at an event"
 
-GOOD example (specific — DO this):
-"Madison Square Garden packed with Filipino flag-waving fans during NBA Finals Game 5, Jordan Clarkson in Knicks jersey holding the ball, dramatic arena lighting, confetti, photojournalism, editorial photography, documentary style, sharp focus, high resolution"
-
-Another GOOD example for a flood article:
-"Marikina City residents wading through chest-deep floodwater carrying belongings, submerged jeepneys and houses, overcast storm sky, emergency responders in orange boats, photojournalism, editorial photography, documentary style, sharp focus, high resolution"
+GOOD examples (specific — DO this, without style tags):
+"wide shot of Marikina City residents wading chest-deep through floodwater carrying belongings, submerged jeepneys, emergency boat in mid-ground, overcast afternoon light"
+"freeze-frame of Jordan Clarkson mid-three-point release, Madison Square Garden crowd on feet in background, Filipino flags waving, arena floodlight on subject"
+"close-up of PAGASA meteorologist pointing at radar screen showing Super Typhoon Bavi, red warning overlay on monitor, office fluorescent light, tense expression"
 </image_prompt>
 
 Respond with valid JSON only (no markdown, no code fences):
-{"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"subject, action, setting, lighting mood, photojournalism, editorial photography, documentary style, sharp focus, high resolution"}`
+{"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"specific scene details only, no style tags — composition, subject, action, setting, lighting as comma-separated phrase"}`
 
-    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${orKey}`, 'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://github.com/mack0y/TrendwirePhilippines',
-        'X-Title': 'TrendWire Philippines',
-      },
-      body: JSON.stringify({
-        model: model || orModel, messages: [{ role: 'user', content: prompt }],
-        temperature: 0.8, max_tokens: 3000, response_format: { type: 'json_object' },
-      }),
-    })
+    async function callLLM(messages: Array<{role: string; content: string}>, retryLabel: string): Promise<any> {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${orKey}`, 'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://github.com/mack0y/TrendwirePhilippines',
+          'X-Title': 'TrendWire Philippines',
+        },
+        body: JSON.stringify({
+          model: model || orModel, messages,
+          temperature: 0.8, max_tokens: 3000, response_format: { type: 'json_object' },
+        }),
+      })
 
-    if (!res.ok) { const e = await res.json(); throw new Error(`OpenRouter: ${e.error?.message||res.status}`) }
+      if (!res.ok) { const e = await res.json(); throw new Error(`OpenRouter ${retryLabel}: ${e.error?.message||res.status}`) }
 
-    const completion = await res.json()
-    const raw = completion.choices?.[0]?.message?.content
-    if (!raw) throw new Error('No content from LLM')
+      const completion = await res.json()
+      const raw = completion.choices?.[0]?.message?.content
+      if (!raw) throw new Error(`No content from LLM (${retryLabel})`)
 
-    const article = JSON.parse(raw)
+      const parsed = JSON.parse(raw)
+      if (!parsed.title || !parsed.content) throw new Error(`Missing title or content (${retryLabel})`)
+      return parsed
+    }
+
+    function wordCount(text: string): number {
+      return text.trim().split(/\s+/).filter(Boolean).length
+    }
+
+    // First attempt
+    let article = await callLLM([{ role: 'user', content: prompt }], 'first attempt')
+    let wc = wordCount(article.content)
+
+    // If too short, retry with a stronger instruction
+    if (wc < 350) {
+      console.log(`Article too short (${wc} words), requesting expansion...`)
+      const expandPrompt = `The previous article was only ${wc} words, which is too short. Rewrite the following article to be between 400 and 500 words. Keep the same title, summary, and tags. Expand every section with more details, examples, context, and analysis. Use the same style and format.\n\nTitle: ${article.title}\n\nCurrent Content:\n${article.content}`
+      article = await callLLM([
+        { role: 'user', content: prompt },
+        { role: 'assistant', content: JSON.stringify(article) },
+        { role: 'user', content: expandPrompt },
+      ], 'expansion')
+      wc = wordCount(article.content)
+      console.log(`Expanded article word count: ${wc}`)
+    }
+
     if (!article.title || !article.content) throw new Error('Missing title or content')
 
-    const slug = createSlug(article.title)
+    let slug = createSlug(article.title)
+    // Handle slug conflict by appending a timestamp
+    const { data: existingSlug } = await sb.from('articles').select('id').eq('slug', slug).maybeSingle()
+    if (existingSlug) {
+      slug = slug + '-' + Date.now()
+    }
     const { data: saved, error: saveErr } = await sb.from('articles').insert({
       trend_id, title: article.title, slug,
       category: trend.category || 'General',

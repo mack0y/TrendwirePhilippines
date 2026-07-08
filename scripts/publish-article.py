@@ -22,8 +22,8 @@ def validate(a):
     elif len(a['title']) > 65: errs.append(f"Title {len(a['title'])} chars (max 65)")
     if not a.get('content'): errs.append("Missing content")
     wc = len(a['content'].split()) if a.get('content') else 0
-    if wc < 300: errs.append(f"Too short: {wc} words")
-    if wc > 500: errs.append(f"Too long: {wc} words")
+    if wc < 350: errs.append(f"Too short: {wc} words (min 350)")
+    if wc > 500: errs.append(f"Too long: {wc} words (max 500)")
     for p in ['google trends','search volume','trending data','filipinos are searching']:
         if p in a.get('content','').lower(): errs.append(f"Forbidden: '{p}'")
     return errs

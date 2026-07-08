@@ -49,7 +49,7 @@ Rappler RSS ───────────┘          │
 ### Data Flow (Admin Editor)
 
 1. **Fetch Trends** — Admin page loads trends from DB; background-fetches from Google Trends
-2. **Generate** — Select a model (owl-alpha or deepseek-v4-flash), click Generate → `generate-article` Edge Function saves draft in Supabase
+2. **Generate** — Select a model (laguna-xs-2.1 or deepseek-v4-flash), click Generate → `generate-article` Edge Function saves draft in Supabase
 3. **Edit** — Split-pane editor opens inline: edit title, summary, content, tags, category, SEO description
 4. **Photo** — Enter image prompt → "Generate with AI" uses free Pollinations.ai → preview → "Use This Photo" saves to Supabase Storage via `admin-operations`
 5. **Save / Publish** — Save Draft calls `admin-operations update-article`; Publish flips status to `published` with content validation
@@ -62,7 +62,7 @@ Rappler RSS ───────────┘          │
 |-------|-----------|
 | Database | Supabase (PostgreSQL) |
 | Edge Functions | Deno (TypeScript) |
-| AI/LLM | OpenRouter (owl-alpha / deepseek-v4-flash / openrouter/free, selectable) |
+| AI/LLM | OpenRouter (laguna-xs-2.1 / deepseek-v4-flash / openrouter/free, selectable) |
 | AI Images | Pollinations.ai (free, no API key) |
 | Image Storage | Supabase Storage (article-images bucket) |
 | CLI tool | Python 3.11+ |
@@ -153,7 +153,7 @@ Rappler RSS ───────────┘          │
 | `SUPABASE_SERVICE_ROLE_KEY` | Edge Functions | ✅ |
 | `SUPABASE_SERVICE_KEY` | Python scripts | ✅ |
 | `OPENROUTER_API_KEY` | `generate-article` function | ✅ |
-| `OPENROUTER_MODEL` | `generate-article` function (default: `openrouter/owl-alpha`, overrideable from frontend) | ❌ |
+| `OPENROUTER_MODEL` | `generate-article` function (default: `poolside/laguna-xs-2.1:free`, overrideable from frontend) | ❌ |
 | `TELEGRAM_BOT_TOKEN` | `fetch-multi-sources` function | ❌ (alerts skipped if not set) |
 | `TELEGRAM_CHAT_ID` | `fetch-multi-sources` function | ❌ (alerts skipped if not set) |
 | `SITE_URL` | `fetch-multi-sources` function (default: GitHub Pages URL) | ❌ |
@@ -219,7 +219,7 @@ Rappler RSS ───────────┘          │
 - Takes `trend_id` and optional `model` (overrides `OPENROUTER_MODEL` env var)
 - Builds category-specific prompt with XML-tagged sections, calls OpenRouter, saves draft to Supabase
 - **Prompt structure:** `<persona>`, `<context>`, `<rules>`, `<thinking>` (CoT planning step), `<structure>` (category-specific), `<formatting>`, `<example>` (few-shot reference)
-- Supported models: `openrouter/free` (default), `openrouter/owl-alpha`, `deepseek/deepseek-v4-flash`
+- Supported models: `poolside/laguna-xs-2.1:free` (default), `openrouter/free`, `deepseek/deepseek-v4-flash`
 
 ### `admin-operations` (admin CRUD)
 Consolidated admin Edge Function handling 6 actions:
@@ -304,7 +304,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - Added free AI image generation via Pollinations.ai
 - Created `rapid-processor` Edge Function for admin CRUD
 - Added Supabase Storage bucket `article-images` for photo storage
-- Added model selector (owl-alpha / deepseek-v4-flash / openrouter/free)
+- Added model selector (laguna-xs-2.1 / deepseek-v4-flash / openrouter/free)
 - Fixed tag XSS by using `escHtml()` in tag preview rendering
 - Added content length validation (400–700 words) before publishing
 
@@ -332,7 +332,7 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **Markdown rendering** — Added `renderMarkdown()` function that converts `**text**` → `<strong>`, handles `\n\n` + `\n` line breaks, strips unmatched `**`
 - **`**text** → bold` hint** — Added note below editor content field explaining markdown syntax
 - **Prompt updated** — LLM prompt word count changed to target 350 words, added explicit formatting rules (use `\n\n`, bold sparingly, no lists)
-- **Default model** — Changed from `openrouter/owl-alpha` to `openrouter/free`
+- **Default model** — Changed from `openrouter/owl-alpha` to `openrouter/free`, then to `poolside/laguna-xs-2.1:free`
 - **Delete article** — Added `delete-article` action to Edge Function + single delete button per article
 - **Bulk delete** — Added `delete-articles` action (accepts `ids[]`), checkboxes, Select All, Delete Selected bulk bar
 
@@ -431,12 +431,48 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 | v25 | Fix syntax error: close unclosed forEach callback |
 | v26 | Fix image upload: deploy Edge Functions, URL-based upload to avoid body size limit |
 | v27 | Fix GitHub Actions push permissions (PAT_TOKEN), word count target 350, raw shell git push |
+| v28 | Full code audit fix: grid structure, auth hardening, cursor pagination, SEO fixes, CSS additions |
+| v29 | Word count enforcement: expanded few-shot, auto-expansion retry, thresholds 300→350 |
 
 - `index.html` uses `<script src="app.js?v=N">` to force CDN refresh
 - Bump `N` on each deploy
 - GitHub Pages CDN can take 1–5 minutes to propagate
 
 ---
+
+### Image Prompt Overhaul (2026-07-08)
+- **LLM prompt** — Replaced generic `<image_prompt>` section with structured steps: visual element extraction, composition guidance (wide/medium/close/action), category-specific photography rules (12 categories), and lighting guidance by setting. Style tags removed from LLM output (now appended client-side).
+- **`enhanceImagePrompt()`** — Rewrote with word-boundary location detection (stops false matches like "ph" in "photo"), strips any style tags the LLM accidentally produces, and always appends photojournalism tags. Prepend "Philippine" only when prompt starts with lowercase.
+- **Few-shot example** — Updated image prompt to match new format (no style tags).
+- **`app.js` cache-bust** bumped to `v=29`.
+
+### Model Change (2026-07-08)
+- **Default model** — Changed from `openrouter/free` to `poolside/laguna-xs-2.1:free`. Removed `openrouter/owl-alpha` from the model selector entirely. The new model is `laguna-xs-2.1:free` is a poolside model with strong writing quality and a generous free tier.
+
+### Word Count Enforcement (2026-07-08)
+- **Few-shot example expanded** — The Clarkson example article was only ~100 words, teaching the LLM to be short. Replaced with a full-length ~380-word example showing proper depth.
+- **Prompt strengthened** — `"Target 350 words"` → `"CRITICAL: MUST be 350-500 words. Count your words before finalizing."` with a hard rule in `<rules>` and stronger language in `<formatting>`.
+- **Auto-expansion retry** — Edge Function now checks word count after generation. If below 350, it sends a second LLM call with an expansion prompt including the original content, asking for 400-500 words. No more manually regenerating short drafts.
+- **Frontend thresholds tightened** — Word counter green range changed from 300-500 → 350-500. Publish validation minimum raised from 300 → 350. Toast feedback after generation shows exact word count with color-coded status.
+- **Consistency across stack** — `publish-article.py` validation matches (350 min), editor hints match, word counter colors match.
+
+### Full Code Audit Fixes (2026-07-08)
+- **Grid structure bug** — `renderArticlesGrid()` had `.article-grid` closing `</div>` inside the `forEach` loop, causing all cards after the first to render outside the CSS grid. Moved `</div>` after the loop.
+- **Slug conflicts** — `generate-article` now checks for existing slug before inserting and appends timestamp on conflict.
+- **Client-side pagination** — Replaced server-side `.range()` pagination with client-side slicing of a single `.limit(100)` fetch, eliminating race conditions when new articles are published mid-session.
+- **Category tab URL** — `__catFilterTab` now calls `history.pushState` to update the URL, consistent with breadcrumb/category links.
+- **Meta tag accumulation** — `updateSeoForArticle` now removes old `article:tag` meta elements before adding new ones, preventing tag bleed between article navigations.
+- **Sitemap conflict** — Removed `generate-seo-assets.yml` (duplicate of `generate-sitemap.yml`); updated `generate-sitemap.yml` to use dynamic Python generator instead of static shell script so sitemap includes all published articles.
+- **Missing CSS** — Added `trend-card` border-left colors for `Technology` and `Entertainment` categories.
+- **Publish validation messages** — Fixed error messages to accurately reflect 300-500 word thresholds instead of mentioning 350.
+- **`published_at` preservation** — `publish-article` action now preserves existing `published_at` on re-publish instead of overwriting.
+- **No-JS fallback** — Moved `opacity: 0` from base `.article-card` to `.animate-in` class so cards remain visible if JS fails.
+- **Scroll to top** — `navigate()` now calls `window.scrollTo(0, 0)` when switching routes.
+- **Weather retry** — Added "↻ Retry" button on weather fetch failure.
+- **Security note** — Added warning comment in `admin-operations` about missing auth; eventual fix requires Supabase Auth login flow.
+- **Import cleanup** — Moved `import requests` to top of `fetch-lotto-results.py`.
+- **SearchAction JSON-LD** — Updated search URL template from `/search` (nonexistent) to `/?tag=`.
+- **Modal link** — Added `rel="noopener noreferrer"` to publish success modal's "View Article" link.
 
 ## Known Issues & Gotchas
 

@@ -63,7 +63,7 @@ Set the required secrets:
 supabase secrets set SUPABASE_URL=<your-project-url>
 supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<your-service-role-key>
 supabase secrets set OPENROUTER_API_KEY=<your-openrouter-key>
-supabase secrets set OPENROUTER_MODEL=openrouter/owl-alpha  # optional, default
+supabase secrets set OPENROUTER_MODEL=poolside/laguna-xs-2.1:free  # optional, default
 ```
 
 ### 3. Environment Variables
@@ -176,7 +176,7 @@ The `publish-article.yml` workflow can be triggered manually via the GitHub Acti
 | `SUPABASE_SERVICE_ROLE_KEY` | Edge Functions | ✅ |
 | `SUPABASE_SERVICE_KEY` | Python scripts | ✅ |
 | `OPENROUTER_API_KEY` | `generate-article` function | ✅ |
-| `OPENROUTER_MODEL` | `generate-article` function | ❌ (default: `openrouter/owl-alpha`) |
+| `OPENROUTER_MODEL` | `generate-article` function | ❌ (default: `poolside/laguna-xs-2.1:free`) |
 
 ## Security Notes
 

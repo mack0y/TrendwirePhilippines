@@ -5,7 +5,7 @@ Runs the full chain against the live project:
   1. Connection check
   2. Fetch latest PH trends (Edge Function)
   3. Grab the newest trend
-  4. Generate an article via OpenRouter owl-alpha (Edge Function)
+  4. Generate an article via OpenRouter (Edge Function)
   5. Flip that draft to 'published' and VERIFY it actually changed
 """
 import os
@@ -67,7 +67,7 @@ print(f"{trend['title']} [{trend['category']}]" if trend else "No trend found")
 if not trend:
     print("❌ Cannot continue without a trend"); sys.exit(1)
 
-print("\n✏️ 4. Generate article via owl‑alpha...")
+print("\n✏️ 4. Generate article via LLM...")
 gen = api("POST", "/functions/v1/generate-article", {"trend_id": trend['id']})
 article = gen.get('article') if gen else None
 print(f"Article '{article['title']}' status: {article['status']}" if article else "Generation failed")

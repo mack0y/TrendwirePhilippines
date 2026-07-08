@@ -12,6 +12,7 @@ Usage:
     python scripts/fetch-lotto-results.py --dry-run           # preview only
 """
 import argparse, json, os, re, sys
+import requests
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
@@ -125,7 +126,6 @@ def is_draw_expected(game_name: str, draw_time: str, now_ph: datetime, target_da
 
 def fetch_gma_lotto():
     """Fetch and parse GMA News lotto page, returning the JSON data dict."""
-    import requests
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',

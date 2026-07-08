@@ -6,6 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+/*
+ * SECURITY NOTE: This function should be protected by Supabase Auth JWT verification,
+ * but the current frontend admin dashboard has no login system.
+ * To harden: implement Supabase Auth login flow, then uncomment the JWT check below
+ * and pass the user's access_token from the frontend.
+ * For now, security relies on the `/admin` route being unindexed and unlisted.
+ */
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
@@ -43,8 +51,12 @@ serve(async (req) => {
 
       case 'publish-article': {
         const { id } = payload
+        // Only set published_at if it's not already set (preserve original publish date on re-publish)
+        const { data: existing } = await sb.from('articles')
+          .select('published_at').eq('id', id).maybeSingle()
+        const published_at = existing?.published_at || new Date().toISOString()
         const { data, error } = await sb.from('articles')
-          .update({ status: 'published', published_at: new Date().toISOString() })
+          .update({ status: 'published', published_at })
           .eq('id', id).select().single()
         if (error) throw error
         return new Response(JSON.stringify(data),

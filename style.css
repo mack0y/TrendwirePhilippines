@@ -514,8 +514,12 @@ body {
   cursor: pointer;
   overflow: hidden;
   transition: all var(--transition);
+}
+
+.article-card.animate-in {
   opacity: 0;
   transform: translateY(16px);
+  animation: cardSlideUp 0.5s ease forwards;
 }
 
 @keyframes cardSlideUp {
@@ -523,10 +527,6 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-.article-card.animate-in {
-  animation: cardSlideUp 0.5s ease forwards;
 }
 
 .article-card:hover {
@@ -1325,6 +1325,8 @@ body {
 .trend-card[data-category="Disaster"] { border-left-color: #E67E22; }
 .trend-card[data-category="Economy"] { border-left-color: #27AE60; }
 .trend-card[data-category="Health"] { border-left-color: #3498DB; }
+.trend-card[data-category="Technology"] { border-left-color: #5C6BC0; }
+.trend-card[data-category="Entertainment"] { border-left-color: #AB47BC; }
 .trend-card[data-category="General"] { border-left-color: var(--text-muted); }
 
 .trend-info {
@@ -1569,6 +1571,25 @@ body {
   text-align: center;
   color: var(--text-muted);
   font-size: 12px;
+}
+
+.weather-retry-btn {
+  display: inline-block;
+  margin-top: 8px;
+  background: var(--blue);
+  color: white;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background var(--transition);
+}
+
+.weather-retry-btn:hover {
+  background: var(--blue-dark);
 }
 
 /* ===== Trending Sidebar ===== */
