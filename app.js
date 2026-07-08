@@ -1354,6 +1354,21 @@ async function renderAdmin() {
     setTimeout(() => { toast = null; const el = document.querySelector('.toast'); if (el) el.remove() }, 4000)
   }
 
+  function renderQualityBadge(article) {
+    if (!article || !article.quality_score) return ''
+    var score = article.quality_score
+    var color = score >= 8 ? '#2e7d32' : score >= 5 ? '#f9a825' : '#c62828'
+    var label = score >= 8 ? 'Great' : score >= 5 ? 'Needs review' : 'Poor'
+    var barWidth = (score / 10) * 100
+    return `
+      <div class="quality-badge" style="display:inline-flex;align-items:center;gap:8px;margin-left:8px;font-size:12px">
+        <span style="display:flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;background:${color}15;color:${color};font-weight:700;border:1px solid ${color}30">
+          <span style="font-size:14px">${score >= 8 ? '✅' : score >= 5 ? '⚠️' : '❌'}</span>
+          ${score.toFixed(1)} ${label}
+        </span>
+      </div>`
+  }
+
   async function loadFromDB() {
     try {
       trends = await searchTrendsDB('')
@@ -1408,10 +1423,10 @@ async function renderAdmin() {
       generating = null
       render()
       const wc = (article.content || '').trim().split(/\s+/).filter(Boolean).length
-      if (wc < 300) {
+      if (wc < 500) {
         showToast(`⚠️ Generated content is only ${wc} words — try regenerating or expand manually before publishing.`, 'error')
-      } else if (wc < 350) {
-        showToast(`📝 ${wc} words — close to the 350 minimum. Consider adding more detail.`, 'info')
+      } else if (wc < 600) {
+        showToast(`📝 ${wc} words — close to the 600 minimum. Consider adding more detail.`, 'info')
       } else {
         showToast(`✅ ${wc} words — ready for review!`, 'success')
       }
@@ -1457,12 +1472,12 @@ async function renderAdmin() {
 
     // Validate content before publishing
     const words = (editorDraft.content || '').trim().split(/\s+/).filter(Boolean).length
-    if (words < 350) {
-      showToast(`⚠️ Content too short (${words} words). Minimum is 350 words.`, 'error')
+    if (words < 600) {
+      showToast(`⚠️ Content too short (${words} words). Minimum is 600 words.`, 'error')
       return
     }
-    if (words > 500) {
-      showToast(`⚠️ Content too long (${words} words). Maximum is 500 words.`, 'error')
+    if (words > 800) {
+      showToast(`⚠️ Content too long (${words} words). Maximum is 800 words.`, 'error')
       return
     }
 
@@ -1677,7 +1692,7 @@ async function renderAdmin() {
       if (wc && field === 'content') {
         const words = value.trim().split(/\s+/).filter(Boolean).length
         wc.textContent = `${words} words`
-        wc.style.color = (words >= 350 && words <= 500) ? '#2e7d32' : '#c62828'
+        wc.style.color = (words >= 600 && words <= 800) ? '#2e7d32' : '#c62828'
       }
     }
   }
@@ -1873,7 +1888,7 @@ async function renderAdmin() {
     if (hasEditor) {
       const d = editorDraft
       const contentWords = (d.content || '').trim().split(/\s+/).filter(Boolean).length
-      const contentColor = (contentWords >= 350 && contentWords <= 500) ? '#2e7d32' : '#c62828'
+      const contentColor = (contentWords >= 600 && contentWords <= 800) ? '#2e7d32' : '#c62828'
 
       const tagsList = (d.tags || '').split(',').map(t => t.trim()).filter(Boolean)
 
@@ -1883,6 +1898,7 @@ async function renderAdmin() {
             <div class="editor-header">
               <h2>✏️ Edit Article</h2>
               <span class="editor-status-badge ${editingArticle?.status === 'published' ? 'published-badge' : 'draft-badge'}">${editingArticle?.status === 'published' ? 'Published' : 'Draft'}</span>
+              ${renderQualityBadge(editingArticle)}
             </div>
 
             <!-- Title -->
@@ -1926,7 +1942,7 @@ async function renderAdmin() {
                 : `<div class="editor-preview">${renderMarkdown(d.content || '')}</div>`
               }
               <div class="editor-hint">
-                ${contentWords < 350 ? `📝 ${contentWords} words — aim for 350-500` : contentWords > 500 ? `📝 ${contentWords} words — max is 500` : `✅ ${contentWords} words — good length`}
+                ${contentWords < 600 ? `📝 ${contentWords} words — aim for 600-800` : contentWords > 800 ? `📝 ${contentWords} words — max is 800` : `✅ ${contentWords} words — good length`}
                 ${!previewMode ? `<span style="margin-left:12px;color:var(--text-muted);font-weight:400">**text** → bold</span>` : ``}
               </div>
             </div>
@@ -2236,6 +2252,7 @@ async function renderArticle(slug) {
             </a>
             <h1>${article.title}</h1>
             <div class="meta">
+              <span>✍️ ${escHtml(article.author || 'TrendWire Staff')}</span>
               <span>📅 ${formatDateFull(article.published_at || article.created_at)}</span>
               <span>📖 ${readingTime(content)} min read</span>
               ${tags.length ? `<span>🏷️ ${tags.length} tags</span>` : ''}

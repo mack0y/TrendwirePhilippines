@@ -38,7 +38,7 @@ serve(async (req) => {
         const { id, ...fields } = payload
         const updates: Record<string, unknown> = {}
         const allowed = ['title', 'summary', 'content', 'category', 'tags',
-          'seo_description', 'image_prompt', 'image_url']
+          'seo_description', 'image_prompt', 'image_url', 'author']
         for (const key of allowed) {
           if (fields[key] !== undefined) updates[key] = fields[key]
         }

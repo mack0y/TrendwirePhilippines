@@ -86,7 +86,8 @@ ${srcText}
 - Write about the story itself — NOT about "trending" topics or "search data"
 - Do not mention Google Trends, search volume, or traffic metrics
 - Base every factual claim on the provided sources. If sources don't support a claim, omit it rather than speculate
-- CRITICAL: The content field MUST be between 350 and 500 words. Count your words before finalizing. Short articles get rejected.
+- CRITICAL: The content field MUST be between 600 and 800 words. Count your words before finalizing. Articles under 600 words get rejected.
+- Sign the article with: "-- TrendWire Staff" at the very end (after the bottom line) as the author credit. Do NOT include "By [name]" anywhere else.
 </rules>
 
 <thinking>
@@ -103,7 +104,7 @@ ${structure}
 <formatting>
 ${paragraphRule}
 
-Style: Conversational Filipino English. Short paragraphs, each making the reader want to read the next. Aim for 400-500 words, ABSOLUTE MINIMUM is 350 words. Never sound like a textbook.
+Style: Conversational Filipino English. Short paragraphs, each making the reader want to read the next. Aim for 650-800 words, ABSOLUTE MINIMUM is 600 words. Never sound like a textbook.
 </formatting>
 
 <example>
@@ -167,7 +168,7 @@ GOOD examples (specific — DO this, without style tags):
 </image_prompt>
 
 Respond with valid JSON only (no markdown, no code fences):
-{"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"specific scene details only, no style tags — composition, subject, action, setting, lighting as comma-separated phrase"}`
+{"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article (600-800 words, ends with '-- TrendWire Staff')","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"specific scene details only, no style tags — composition, subject, action, setting, lighting as comma-separated phrase"}`
 
     async function callLLM(messages: Array<{role: string; content: string}>, retryLabel: string): Promise<any> {
       const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
@@ -203,9 +204,9 @@ Respond with valid JSON only (no markdown, no code fences):
     let wc = wordCount(article.content)
 
     // If too short, retry with a stronger instruction
-    if (wc < 350) {
+    if (wc < 600) {
       console.log(`Article too short (${wc} words), requesting expansion...`)
-      const expandPrompt = `The previous article was only ${wc} words, which is too short. Rewrite the following article to be between 400 and 500 words. Keep the same title, summary, and tags. Expand every section with more details, examples, context, and analysis. Use the same style and format.\n\nTitle: ${article.title}\n\nCurrent Content:\n${article.content}`
+      const expandPrompt = `The previous article was only ${wc} words, which is too short. Rewrite the following article to be between 650 and 800 words. Keep the same title, summary, and tags. Expand every section with more details, examples, context, and analysis. Use the same style and format. End with '-- TrendWire Staff'.\n\nTitle: ${article.title}\n\nCurrent Content:\n${article.content}`
       article = await callLLM([
         { role: 'user', content: prompt },
         { role: 'assistant', content: JSON.stringify(article) },
@@ -228,10 +229,21 @@ Respond with valid JSON only (no markdown, no code fences):
       category: trend.category || 'General',
       summary: article.summary || '', content: article.content,
       image_prompt: article.image_prompt || '', seo_description: article.seo_description || '',
-      tags: article.tags || [], status: 'draft',
+      tags: article.tags || [], status: 'draft', author: 'TrendWire Staff',
     }).select().single()
 
     if (saveErr) throw saveErr
+
+    // Fire-and-forget quality check (don't block the response)
+    const qcUrl = `${url}/functions/v1/quality-check`
+    fetch(qcUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${svcKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ article_id: saved.id, model: model || orModel }),
+    }).catch(e => console.error('Quality check call failed:', e.message))
 
     return new Response(JSON.stringify({ message: 'Article generated', article: saved }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })

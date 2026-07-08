@@ -448,6 +448,22 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **Script optimization** — Added `defer` to both `<script>` tags. Added JS snippet to auto-update copyright year.
 - **AdSense placeholder** — Commented-out AdSense snippet in `<head>` for user to uncomment with their publisher ID.
 
+### Sprint 1 — Article Quality (2026-07-08)
+- **Word count raised** — 350-500 → **600-800** across LLM prompt, auto-expansion threshold, frontend word counter (green range), publish validation, and `publish-article.py`.
+- **Author attribution** — Articles now include `author` field (default "TrendWire Staff"). Displayed in article meta (✍️). JSON-LD schema updates to use `Person` author type.
+- **Quality check Edge Function** (`quality-check`) — Scores articles on 5 axes:
+  - Naturalness (robotic transitions, sentence variance, filler phrases)
+  - Specificity (numbers, names, dates, locations)
+  - Structure (paragraph count, bold usage, section label leaks, bullet points)
+  - Forbidden terms (Google Trends, search volume, etc.)
+  - Headline fit (keywords in intro, summary reflects content)
+  - LLM pass (openrouter/free scores + issues for any criterion below 7)
+- **Scoring**: 30% heuristic + 70% LLM. Score ≥ 8.0 auto-publishes, 5.0–7.9 flags, < 5.0 would reject (not yet wired to regenerate).
+- **Admin badge** — Color-coded quality score badge in editor header (green ≥ 8, yellow 5–7, red < 5).
+- **Admin operations** — Added `author` to allowed update fields.
+- **New DB columns**: `author TEXT`, `quality_score REAL`, `quality_details JSONB`.
+- **Functions deployed**: `generate-article`, `quality-check`, `admin-operations` — all with `--no-verify-jwt`.
+
 ### Trend Discovery Overhaul (2026-07-08)
 - **New RSS sources** — Added PhilStar (`philstar.com/rss/headlines`), Inquirer (`inquirer.net/fullfeed`), ABS-CBN (`news.abs-cbn.com/feed/`) via generic `fetchRSSNews()` function.
 - **Noise filter** — Added `NOISE_PATTERNS` blocklist: lotto results, swertres, ez2, stl, pba scores, horoscope, wordle, connections, song lyrics. Filtered before dedup.
