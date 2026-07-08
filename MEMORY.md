@@ -448,6 +448,13 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 - **Script optimization** — Added `defer` to both `<script>` tags. Added JS snippet to auto-update copyright year.
 - **AdSense placeholder** — Commented-out AdSense snippet in `<head>` for user to uncomment with their publisher ID.
 
+### Sprint 2+3 — Pre-rendering, Sitemap, Facebook, Internal Links (2026-07-08)
+- **Pre-rendering** — `scripts/generate-article-pages.py` generates static HTML files for all published articles in `articles/<slug>.html` with full content, nav, JSON-LD, OG tags inline. Googlebot sees content without JS.
+- **Sitemap** — Updated to include both SPA routes and static article URLs. Admin URL removed.
+- **publish-ghpages.yml** — Now calls pre-rendering + sitemap generation after publishing.
+- **Facebook auto-post** — `scripts/post-to-facebook.py` + `.github/workflows/auto-post-facebook.yml` cron (every 4h). Posts latest article with title, summary, link, image. Requires `FB_PAGE_ID` and `FB_ACCESS_TOKEN` secrets.
+- **Internal links** — Updated LLM prompt to include related story references in "WHAT'S NEXT" / "BOTTOM LINE" sections.
+
 ### Sprint 1 — Article Quality (2026-07-08)
 - **Word count raised** — 350-500 → **600-800** across LLM prompt, auto-expansion threshold, frontend word counter (green range), publish validation, and `publish-article.py`.
 - **Author attribution** — Articles now include `author` field (default "TrendWire Staff"). Displayed in article meta (✍️). JSON-LD schema updates to use `Person` author type.

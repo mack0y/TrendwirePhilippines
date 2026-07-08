@@ -27,13 +27,16 @@ lines = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     f'  <url><loc>{SITE_URL}/</loc><lastmod>{now}</lastmod><changefreq>hourly</changefreq><priority>1.0</priority></url>',
-    f'  <url><loc>{SITE_URL}/admin</loc><changefreq>daily</changefreq><priority>0.3</priority></url>',
+    # Admin intentionally excluded (noindex)
 ]
 
 for a in articles:
     lastmod = (a.get('updated_at') or a.get('published_at') or now).replace('+00:00', '+00:00') if a.get('updated_at') or a.get('published_at') else now
     priority = '0.8' if a.get('category') in ('Disaster', 'Politics') else '0.6'
+    # SPA route
     lines.append(f'  <url><loc>{SITE_URL}/article/{a["slug"]}</loc><lastmod>{lastmod}</lastmod><changefreq>weekly</changefreq><priority>{priority}</priority></url>')
+    # Pre-rendered static page
+    lines.append(f'  <url><loc>{SITE_URL}/articles/{a["slug"]}.html</loc><lastmod>{lastmod}</lastmod><changefreq>weekly</changefreq><priority>{priority}</priority></url>')
 
 lines.append('</urlset>')
 

@@ -37,6 +37,15 @@ jobs:
         run: |
           python scripts/publish-article.py --latest
 
+      - name: Generate pre-rendered article pages + sitemap
+        env:
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          SUPABASE_URL:         ${{ secrets.SUPABASE_URL }}
+          SITE_URL:             ${{ secrets.SITE_URL || 'https://mack0y.github.io/TrendwirePhilippines' }}
+        run: |
+          python scripts/generate-article-pages.py
+          python scripts/generate-sitemap.py
+
       - name: Commit & push changes
         run: |
           git config user.name "mack0y"

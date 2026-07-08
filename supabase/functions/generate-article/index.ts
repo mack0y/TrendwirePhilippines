@@ -88,6 +88,7 @@ ${srcText}
 - Base every factual claim on the provided sources. If sources don't support a claim, omit it rather than speculate
 - CRITICAL: The content field MUST be between 600 and 800 words. Count your words before finalizing. Articles under 600 words get rejected.
 - Sign the article with: "-- TrendWire Staff" at the very end (after the bottom line) as the author credit. Do NOT include "By [name]" anywhere else.
+- In the "WHAT'S NEXT" or "BOTTOM LINE" section, naturally mention 1-2 related stories or topics with phrases like "in related news" or "this follows" — this helps readers discover similar coverage.
 </rules>
 
 <thinking>
