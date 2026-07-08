@@ -76,6 +76,7 @@ function handleRoute() {
   if (catParam) {
     categoryFilter = catParam
   }
+  updateNavActive(catParam || '')
   
   if (path === '/' || path === '') {
     currentRoute = 'list'
@@ -931,7 +932,15 @@ window.__catFilterTab = function(cat) {
   tagFilter = ''
   var url = BASE_PATH + '/' + (cat ? '?category=' + encodeURIComponent(cat) : '')
   history.pushState(null, '', url)
+  updateNavActive(cat)
   renderArticlesGrid()
+}
+
+function updateNavActive(cat) {
+  var links = document.querySelectorAll('.nav-link')
+  for (var i = 0; i < links.length; i++) {
+    links[i].classList.toggle('active', links[i].getAttribute('data-cat') === cat)
+  }
 }
 
 window.__clearTagFilter = function() {

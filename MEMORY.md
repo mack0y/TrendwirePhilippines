@@ -440,6 +440,20 @@ The `fetch-trends` Edge Function was written against a **migration schema** (`sl
 
 ---
 
+### Navigation & AdSense Compliance (2026-07-08)
+- **Navigation bar** — Added sticky horizontal nav bar below header with 9 category links (Home, Disaster, Politics, Sports, Economy, Health, Technology, Entertainment, General). Active state tracked via `updateNavActive()` in app.js. Category clicks use existing `__catFilterTab` SPA routing.
+- **Footer** — Extended with links: Home, Privacy Policy, About, Contact.
+- **Static pages** — Created `privacy-policy.html`, `about.html`, `contact.html`. Each includes nav bar + footer for consistent UX.
+- **404 page** — Replaced bare redirect with proper page: shows 404 heading, message, homepage link, category links. Redirect still runs for SPA deep-link fallback.
+- **Script optimization** — Added `defer` to both `<script>` tags. Added JS snippet to auto-update copyright year.
+- **AdSense placeholder** — Commented-out AdSense snippet in `<head>` for user to uncomment with their publisher ID.
+
+### Trend Discovery Overhaul (2026-07-08)
+- **New RSS sources** — Added PhilStar (`philstar.com/rss/headlines`), Inquirer (`inquirer.net/fullfeed`), ABS-CBN (`news.abs-cbn.com/feed/`) via generic `fetchRSSNews()` function.
+- **Noise filter** — Added `NOISE_PATTERNS` blocklist: lotto results, swertres, ez2, stl, pba scores, horoscope, wordle, connections, song lyrics. Filtered before dedup.
+- **LLM categorization** — Items keyword-matched as `General` get batched (20 at a time) to `openrouter/free` for re-classification. Uses `openrouter/free` (no cost). Re-categorizes only when LLM returns a non-General category.
+- **`fetch-multi-sources` deployed** with `--no-verify-jwt`.
+
 ### Image Prompt Overhaul (2026-07-08)
 - **LLM prompt** — Replaced generic `<image_prompt>` section with structured steps: visual element extraction, composition guidance (wide/medium/close/action), category-specific photography rules (12 categories), and lighting guidance by setting. Style tags removed from LLM output (now appended client-side).
 - **`enhanceImagePrompt()`** — Rewrote with word-boundary location detection (stops false matches like "ph" in "photo"), strips any style tags the LLM accidentally produces, and always appends photojournalism tags. Prepend "Philippine" only when prompt starts with lowercase.

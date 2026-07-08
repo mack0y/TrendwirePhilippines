@@ -2097,10 +2097,58 @@ body {
   overflow: hidden;
 }
 
+/* ===== Navigation Bar ===== */
+.main-nav {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: var(--header-height);
+  z-index: 99;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.main-nav::-webkit-scrollbar { display: none; }
+
+.nav-inner {
+  display: flex;
+  max-width: var(--max-width);
+  margin: 0 auto;
+  padding: 0 8px;
+}
+
+.nav-link {
+  flex-shrink: 0;
+  display: block;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color var(--transition), background var(--transition);
+  border-bottom: 3px solid transparent;
+}
+
+.nav-link:hover {
+  color: var(--text);
+  background: rgba(0,0,0,0.03);
+}
+
+.nav-link.active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+}
+
+.nav-link[data-cat=""] {
+  font-weight: 800;
+  color: var(--red);
+}
+
 /* ===== Footer ===== */
 .site-footer {
   text-align: center;
-  padding: 32px 16px;
+  padding: 28px 16px;
   color: var(--text-muted);
   font-size: 13px;
   border-top: 1px solid var(--border);
@@ -2110,6 +2158,25 @@ body {
 .site-footer a {
   color: var(--blue);
   text-decoration: none;
+}
+
+.site-footer a:hover {
+  text-decoration: underline;
+}
+
+.footer-links {
+  margin-bottom: 12px;
+  line-height: 2;
+}
+
+.footer-sep {
+  margin: 0 6px;
+  opacity: 0.4;
+}
+
+.footer-copy {
+  opacity: 0.7;
+  font-size: 12px;
 }
 
 /* ===== Admin Split-Pane Layout ===== */
@@ -2996,4 +3063,80 @@ body {
   .editor-image-actions {
     flex-direction: column;
   }
+}
+
+/* ===== Static Pages (Privacy, About, Contact) ===== */
+.static-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 24px 60px;
+}
+.static-page h1 {
+  font-size: 28px;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.static-page h2 {
+  font-size: 20px;
+  margin: 32px 0 12px;
+  color: var(--text);
+}
+.static-page h3 {
+  font-size: 16px;
+  margin: 24px 0 8px;
+  color: var(--text);
+}
+.static-page p {
+  margin-bottom: 16px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.static-page ul, .static-page ol {
+  margin: 0 0 16px 24px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+}
+.static-page li {
+  margin-bottom: 6px;
+}
+.static-page a {
+  color: var(--blue);
+}
+.static-date {
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 24px;
+}
+.contact-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+.contact-card h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+}
+.contact-card p {
+  margin: 0;
+}
+.contact-note {
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.btn-primary {
+  display: inline-block;
+  background: var(--red);
+  color: white;
+  padding: 12px 28px;
+  border-radius: var(--radius-sm);
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 14px;
+  transition: background var(--transition);
+}
+.btn-primary:hover {
+  background: var(--red-dark);
 }

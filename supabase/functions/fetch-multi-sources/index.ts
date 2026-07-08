@@ -43,17 +43,104 @@ function escHtml(str: string): string {
   return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
-// ── Categorizer ────────────────────────────────────
+// ── Noise blocklist ────────────────────────────────
+const NOISE_PATTERNS = [
+  /^lotto result/i, /^swertres/i, /^ez2/i, /^stl result/i,
+  /^pba scores?$/i, /^pba game/i,
+  /^horoscope/i, /^lottery/i,
+  /^wordle/i, /^connections.*today/i,
+  /^what is the song/i, /^lyrics$/i,
+]
+
+function isNoise(title: string): boolean {
+  return NOISE_PATTERNS.some(p => p.test(title))
+}
+
+// ── Categorizer (keyword first, then LLM for General) ──
+const CATEGORY_KEYWORDS: Array<[string, RegExp]> = [
+  ['Disaster', /earthquake|flood|typhoon|disaster|tsunami|storm|volcano|landslide/],
+  ['Politics', /senate|congress|president|election|impeach|bill|law|govern|senator|representative|administration/],
+  ['Sports', /nba|game|match|tournament|championship|sports|boxing|uaap|ncaa|pba|gilas|olympics/],
+  ['Economy', /price|inflation|economy|peso|stock|market|bpo|gdp|trade deficit/],
+  ['Health', /health|covid|hospital|disease|vaccine|mental|dengue|cancer/],
+  ['Technology', /ai|tech|startup|gadget|phone|computer|app|digital|social media|crypto/],
+  ['Entertainment', /movie|music|concert|celebrity|show|film|artist|kpop|netflix|drama/],
+]
+
 function categorize(title: string): string {
   const t = title.toLowerCase()
-  if (/earthquake|flood|typhoon|disaster|tsunami|storm|volcano|landslide/.test(t)) return 'Disaster'
-  if (/senate|congress|president|election|impeach|bill|law|govern/.test(t)) return 'Politics'
-  if (/nba|game|match|tournament|championship|sports|boxing|uaap|ncaa/.test(t)) return 'Sports'
-  if (/price|inflation|economy|peso|stock|market|bpo/.test(t)) return 'Economy'
-  if (/health|covid|hospital|disease|vaccine|mental/.test(t)) return 'Health'
-  if (/ai|tech|startup|gadget|phone|computer|app|digital/.test(t)) return 'Technology'
-  if (/movie|music|concert|celebrity|show|film|artist|kpop/.test(t)) return 'Entertainment'
+  for (const [, regex] of CATEGORY_KEYWORDS) {
+    if (regex.test(t)) return CATEGORY_KEYWORDS.find(([, r]) => r === regex)![0]
+  }
   return 'General'
+}
+
+// ── LLM categorization (only for items that fell through as General) ──
+async function llmCategorize(items: Array<{ title: string }>, orKey: string): Promise<Map<string, string>> {
+  const result = new Map<string, string>()
+  if (!orKey) return result
+
+  const generalItems = items.filter(item => categorize(item.title) === 'General')
+  if (generalItems.length === 0) return result
+
+  // Batch up to 20 items per LLM call
+  const BATCH_SIZE = 20
+  for (let i = 0; i < generalItems.length; i += BATCH_SIZE) {
+    const batch = generalItems.slice(i, i + BATCH_SIZE)
+    const titlesJson = JSON.stringify(batch.map(item => item.title))
+
+    const prompt = `You are a news categorizer for the Philippines. Assign exactly one category to each headline from this list: Disaster, Politics, Sports, Economy, Health, Technology, Entertainment, or General.
+
+Rules:
+- Disaster: typhoons, earthquakes, floods, storms, volcanoes, landslides
+- Politics: government, congress, senate, elections, bills, laws, governance
+- Sports: basketball, boxing, sports events, tournaments, athletes
+- Economy: prices, inflation, business, stock market, peso, trade
+- Health: diseases, hospitals, vaccines, public health, mental health
+- Technology: AI, gadgets, apps, digital, social media, startups
+- Entertainment: movies, music, celebrities, shows, concerts, K-pop
+- General: everything else not covered above
+
+Respond with valid JSON only: {"headlines":[{"title":"...","category":"..."}]}
+
+Headlines: ${titlesJson}`
+
+    try {
+      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${orKey}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'https://github.com/mack0y/TrendwirePhilippines',
+          'X-Title': 'TrendWire Philippines',
+        },
+        body: JSON.stringify({
+          model: 'openrouter/free',
+          messages: [{ role: 'user', content: prompt }],
+          temperature: 0.1,
+          max_tokens: 500,
+          response_format: { type: 'json_object' },
+        }),
+      })
+      if (res.ok) {
+        const json = await res.json()
+        const raw = json.choices?.[0]?.message?.content
+        if (raw) {
+          const parsed = JSON.parse(raw)
+          if (parsed.headlines) {
+            for (const h of parsed.headlines) {
+              if (h.title && h.category) {
+                result.set(h.title.toLowerCase(), h.category)
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('LLM categorization error:', e.message)
+    }
+  }
+  return result
 }
 
 // ── Parse Google Trends RSS ────────────────────────
@@ -152,16 +239,55 @@ async function fetchRapplerNews(): Promise<Array<{ title: string; summary: strin
   return results
 }
 
+// ── Generic RSS news fetcher ───────────────────────
+async function fetchRSSNews(url: string, sourceName: string, baseScore: number = 55): Promise<Array<{ title: string; summary: string; category: string; impact_score: number; source_links: Array<{url: string; name: string}> }>> {
+  const results: Array<{ title: string; summary: string; category: string; impact_score: number; source_links: Array<{url: string; name: string}> }> = []
+  try {
+    const resp = await fetch(url, {
+      headers: { 'User-Agent': 'TrendWire-Philippines/1.0' },
+    })
+    if (!resp.ok) throw new Error(`${sourceName} RSS fetch failed: ${resp.status}`)
+    const text = await resp.text()
+    const itemRe = /<item>([\s\S]*?)<\/item>/g
+    let m
+    while ((m = itemRe.exec(text)) !== null) {
+      const xml = m[1]
+      const title = (/<title><!\[CDATA\[(.*?)\]\]><\/title>/.exec(xml)?.[1] || /<title>(.*?)<\/title>/.exec(xml)?.[1] || '').trim()
+      if (!title) continue
+      const link = /<link>(.*?)<\/link>/.exec(xml)?.[1] || ''
+      const descRaw = /<description><!\[CDATA\[(.*?)\]\]><\/description>/.exec(xml)?.[1] || /<description>(.*?)<\/description>/.exec(xml)?.[1] || ''
+      const desc = descRaw.replace(/<[^>]+>/g, '').trim()
+      const isBreaking = /breaking|urgent|just in|latest|update/i.test(title)
+      results.push({
+        title,
+        summary: desc.slice(0, 200),
+        category: categorize(title),
+        impact_score: isBreaking ? 75 : baseScore,
+        source_links: link ? [{ url: link, name: sourceName }] : [],
+      })
+    }
+  } catch (e) {
+    console.error(`${sourceName} fetch error:`, e.message)
+  }
+  return results
+}
+
 // ── Fetch all sources ─────────────────────────────
 async function fetchAllSources(): Promise<Array<{ source: string; title: string; summary: string; category: string; impact_score: number; source_links: Array<{url: string; name: string}> }>> {
-  const [googleTrends, rappler] = await Promise.all([
+  const [googleTrends, rappler, philstar, inquirer, abscbn] = await Promise.all([
     fetchGoogleTrends().catch(e => { console.error('Google Trends error:', e.message); return [] }),
     fetchRapplerNews().catch(e => { console.error('Rappler error:', e.message); return [] }),
+    fetchRSSNews('https://www.philstar.com/rss/headlines', 'PhilStar').catch(e => { console.error('PhilStar error:', e.message); return [] }),
+    fetchRSSNews('https://www.inquirer.net/fullfeed', 'Inquirer').catch(e => { console.error('Inquirer error:', e.message); return [] }),
+    fetchRSSNews('https://news.abs-cbn.com/feed/', 'ABS-CBN').catch(e => { console.error('ABS-CBN error:', e.message); return [] }),
   ])
 
   const all = [
     ...googleTrends.map(t => ({ ...t, source: 'Google Trends' })),
     ...rappler.map(t => ({ ...t, source: 'Rappler' })),
+    ...philstar.map(t => ({ ...t, source: 'PhilStar' })),
+    ...inquirer.map(t => ({ ...t, source: 'Inquirer' })),
+    ...abscbn.map(t => ({ ...t, source: 'ABS-CBN' })),
   ]
   return all
 }
@@ -212,6 +338,7 @@ serve(async (req) => {
   try {
     const url = Deno.env.get('SUPABASE_URL') ?? ''
     const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    const orKey = Deno.env.get('OPENROUTER_API_KEY') ?? ''
     const sb = createClient(url, key)
 
     // Get site URL for article links
@@ -221,11 +348,28 @@ serve(async (req) => {
     const rawItems = await fetchAllSources()
     console.log(`Fetched ${rawItems.length} raw items from all sources`)
 
-    // 2. Deduplicate and score
-    const scored = deduplicateAndScore(rawItems)
+    // 2. Filter noise (lotto results, wordle, etc.)
+    const filtered = rawItems.filter(item => !isNoise(item.title))
+    console.log(`After noise filter: ${filtered.length} items (removed ${rawItems.length - filtered.length})`)
+
+    // 3. Apply LLM categorization for items that keyword matching marked as General
+    const llmCategories = await llmCategorize(filtered, orKey)
+    let llmChanged = 0
+    for (const item of filtered) {
+      const llmCat = llmCategories.get(item.title.toLowerCase())
+      if (llmCat && item.category === 'General' && llmCat !== 'General') {
+        console.log(`  LLM re-categorized: "${item.title.slice(0, 50)}..." → ${llmCat} (was ${item.category})`)
+        item.category = llmCat
+        llmChanged++
+      }
+    }
+    console.log(`LLM re-categorized ${llmChanged} items`)
+
+    // 4. Deduplicate and score
+    const scored = deduplicateAndScore(filtered)
     console.log(`After dedup: ${scored.length} unique items`)
 
-    // 3. Save new trends and send alerts
+    // 5. Save new trends and send alerts
     const newTrends: Array<any> = []
     const alertsSent: Array<string> = []
 

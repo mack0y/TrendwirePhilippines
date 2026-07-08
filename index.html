@@ -39,6 +39,10 @@
 
   <link rel="stylesheet" href="style.css">
 
+  <!-- Google AdSense — Replace ca-pub-XXXXXXXX with your publisher ID -->
+  <!-- <meta name="google-adsense-account" content="ca-pub-XXXXXXXX"> -->
+  <!-- <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-XXXXXXXX" crossorigin="anonymous"></script> -->
+
   <!-- JSON-LD Organization Schema (default) -->
   <script type="application/ld+json" id="ld-org">
   {
@@ -90,6 +94,20 @@
     </div>
   </header>
 
+  <nav class="main-nav" aria-label="Main navigation">
+    <div class="nav-inner">
+      <a href="/TrendwirePhilippines/" class="nav-link" data-cat="">Home</a>
+      <a href="/TrendwirePhilippines/?category=Disaster" class="nav-link" onclick="event.preventDefault();navigate('/?category=Disaster')">Disaster</a>
+      <a href="/TrendwirePhilippines/?category=Politics" class="nav-link" onclick="event.preventDefault();navigate('/?category=Politics')">Politics</a>
+      <a href="/TrendwirePhilippines/?category=Sports" class="nav-link" onclick="event.preventDefault();navigate('/?category=Sports')">Sports</a>
+      <a href="/TrendwirePhilippines/?category=Economy" class="nav-link" onclick="event.preventDefault();navigate('/?category=Economy')">Economy</a>
+      <a href="/TrendwirePhilippines/?category=Health" class="nav-link" onclick="event.preventDefault();navigate('/?category=Health')">Health</a>
+      <a href="/TrendwirePhilippines/?category=Technology" class="nav-link" onclick="event.preventDefault();navigate('/?category=Technology')">Technology</a>
+      <a href="/TrendwirePhilippines/?category=Entertainment" class="nav-link" onclick="event.preventDefault();navigate('/?category=Entertainment')">Entertainment</a>
+      <a href="/TrendwirePhilippines/?category=General" class="nav-link" onclick="event.preventDefault();navigate('/?category=General')">General</a>
+    </div>
+  </nav>
+
   <main id="app">
     <div class="container">
       <div class="skeleton skeleton-card"></div>
@@ -99,10 +117,20 @@
   </main>
 
   <footer class="site-footer">
-    <p>© 2026 <a href="https://github.com/mack0y/TrendwirePhilippines">TrendWire Philippines</a></p>
+    <div class="footer-links">
+      <a href="/TrendwirePhilippines/">Home</a>
+      <span class="footer-sep">·</span>
+      <a href="/TrendwirePhilippines/privacy-policy.html">Privacy Policy</a>
+      <span class="footer-sep">·</span>
+      <a href="/TrendwirePhilippines/about.html">About</a>
+      <span class="footer-sep">·</span>
+      <a href="/TrendwirePhilippines/contact.html">Contact</a>
+    </div>
+    <p class="footer-copy">© 2026 <a href="https://github.com/mack0y/TrendwirePhilippines">TrendWire Philippines</a>. All rights reserved.</p>
   </footer>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=29"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="app.js?v=30"></script>
+  <script>document.querySelectorAll('.footer-copy').forEach(function(el){el.textContent=el.textContent.replace(/\d{4}/,new Date().getFullYear())})</script>
 </body>
 </html>
