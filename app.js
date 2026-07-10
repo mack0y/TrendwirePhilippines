@@ -923,7 +923,7 @@ function renderCategoryTabs(categories) {
       <div class="category-tabs">
         <button class="category-tab ${!categoryFilter ? 'active' : ''}" onclick="window.__catFilterTab('')">All</button>
         ${categories.map(function(c) {
-          return `<button class="category-tab ${categoryFilter === c ? 'active' : ''}" onclick="window.__catFilterTab('${c}')">${escHtml(c)}</button>`
+          return `<button class="category-tab ${categoryFilter === c ? 'active' : ''}" onclick="window.__catFilterTab('${escHtml(c)}')">${escHtml(c)}</button>`
         }).join('')}
       </div>
       <div class="category-tab-indicator"></div>
@@ -1798,7 +1798,7 @@ async function renderAdmin() {
               </span>
               ${!isDraft ? `<a href="${BASE_PATH}/article/${a.slug}" target="_blank" class="manage-view-link" title="View published article">↗</a>` : ''}
               <div class="article-manage-meta">
-                <span class="category-badge-sm ${a.category || 'General'}">${a.category || 'General'}</span>
+                <span class="category-badge-sm ${a.category || 'General'}">${escHtml(a.category || 'General')}</span>
                 <span>📅 ${formatDate(a.published_at || a.created_at)}</span>
               </div>
             </div>
@@ -1860,8 +1860,8 @@ async function renderAdmin() {
               ${t.impact_score != null ? `<span class="impact-badge impact-${t.impact_score >= 70 ? 'high' : t.impact_score >= 40 ? 'medium' : 'low'}">${t.impact_score >= 70 ? '🔥' : t.impact_score >= 40 ? '📈' : '📊'} ${t.impact_score}</span>` : ''}
               ${statusBadge}
             </div>
-            <h3>${t.title}</h3>
-            ${t.summary ? `<p class="trend-summary">${t.summary}</p>` : ''}
+            <h3>${escHtml(t.title)}</h3>
+            ${t.summary ? `<p class="trend-summary">${escHtml(t.summary)}</p>` : ''}
             <span class="trend-date">📅 ${formatDate(t.created_at)}</span>
           </div>
           <button class="generate-btn" onclick="renderAdmin.__handleGenerate('${t.id}')"
@@ -2257,7 +2257,7 @@ async function renderArticle(slug) {
 
           <div class="article-header">
             <a href="${catUrl}" class="category-link" onclick="event.preventDefault();navigate('/?category=${encodeURIComponent(cat)}')">
-              <span class="category-badge">${cat}</span>
+              <span class="category-badge">${escHtml(cat)}</span>
             </a>
             <h1>${escHtml(article.title)}</h1>
             <div class="meta">
