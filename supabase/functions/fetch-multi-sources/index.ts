@@ -317,8 +317,12 @@ function deduplicateAndScore(items: Array<{ source: string; title: string; summa
   for (const item of items) {
     const existing = unique.find(u => titlesAreSimilar(u.title, item.title))
     if (existing) {
-      // Boost score and merge sources
-      existing.impact_score = Math.min(100, existing.impact_score + 15)
+      // Time-decay-aware boost: reduced from +15 to +8 per source.
+      // This prevents runaway score inflation while still rewarding
+      // multi-source coverage. Combined with the periodic time-decay
+      // applied to DB-stored scores on re-discovery, older trends
+      // naturally lose priority over time.
+      existing.impact_score = Math.min(100, existing.impact_score + 8)
       existing.source_count++
       // Merge source links
       for (const link of item.source_links) {
@@ -375,13 +379,34 @@ serve(async (req) => {
 
     for (const item of scored) {
       // Check for duplicate by exact title in DB
-      const { data: existing } = await sb.from('trends').select('id, title').eq('title', item.title).maybeSingle()
-      if (existing) continue
+      const { data: existing } = await sb.from('trends').select('id, title, created_at, impact_score').eq('title', item.title).maybeSingle()
+      if (existing) {
+        // Trend is still appearing in feeds — apply time-decay to its score
+        // so old trends naturally lose priority. Refresh updated_at so the
+        // 7-day admin filter keeps it visible as long as it's actively trending.
+        const ageInDays = (Date.now() - new Date(existing.created_at).getTime()) / (1000 * 86400)
+        const decayFactor = Math.max(0.3, Math.exp(-ageInDays / 7)) // 7-day half-life, floor at 0.3
+        const decayedScore = Math.round(existing.impact_score * decayFactor)
+        const finalScore = Math.min(100, Math.max(decayedScore, item.impact_score))
+        await sb.from('trends').update({
+          impact_score: finalScore,
+          updated_at: new Date().toISOString(),
+        }).eq('id', existing.id)
+        continue
+      }
 
       // Check by similar title (fuzzy match)
-      const { data: similar } = await sb.from('trends').select('id, title').ilike('title', `%${item.title.slice(0, 30)}%`).limit(1).maybeSingle()
+      const { data: similar } = await sb.from('trends').select('id, title, created_at, impact_score').ilike('title', `%${item.title.slice(0, 30)}%`).limit(1).maybeSingle()
       if (similar) {
-        // Titles are similar, skip
+        // Similar trend still active — apply same time-decay treatment
+        const ageInDays = (Date.now() - new Date(similar.created_at).getTime()) / (1000 * 86400)
+        const decayFactor = Math.max(0.3, Math.exp(-ageInDays / 7))
+        const decayedScore = Math.round(similar.impact_score * decayFactor)
+        const finalScore = Math.min(100, Math.max(decayedScore, item.impact_score))
+        await sb.from('trends').update({
+          impact_score: finalScore,
+          updated_at: new Date().toISOString(),
+        }).eq('id', similar.id)
         continue
       }
 

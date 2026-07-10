@@ -471,9 +471,13 @@ async function fetchFromGoogleTrends() {
 async function searchTrendsDB(query) {
   if (!sb) throw new Error('Supabase not initialized')
 
+  // Only show trends from the last 7 days — prevents old high-scoring trends from dominating
+  const SEVEN_DAYS_AGO = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+
   let q = sb
     .from('trends')
     .select('id, title, summary, category, impact_score, status, created_at')
+    .gte('created_at', SEVEN_DAYS_AGO)
     .order('impact_score', { ascending: false })
     .order('created_at', { ascending: false })
     .limit(50)
