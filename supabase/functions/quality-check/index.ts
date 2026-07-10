@@ -200,16 +200,14 @@ Respond with valid JSON only:
       }
     }
 
-    // Compute overall score: 50% heuristic, 50% LLM
-    const heuristicScore = ((natural.score + specific.score + struct.score) / 3 * 10 + 10) / 2
-    // forbidden issues and headline mismatch are hard penalties
-    const totalForbiddenPenalty = forbiddenIssues.length * 2 + headlineIssues.length
+    // Compute overall score: 30% heuristic + 70% LLM (when available)
+    const heuristicScore = (natural.score + specific.score + struct.score) / 3
+    const llmWeighted = orKey ? (llmScore) : heuristicScore
+    const overallBase = heuristicScore * 0.3 + llmWeighted * 0.7
 
-    const overallBase = orKey
-      ? (heuristicScore * 0.3 + llmScore * 0.7)
-      : heuristicScore
-
-    const overallScore = Math.max(0, Math.min(10, Math.round((overallBase - totalForbiddenPenalty * 0.5) * 10) / 10))
+    // Apply penalties for forbidden terms and headline mismatch
+    const totalPenalty = forbiddenIssues.length * 1.0 + headlineIssues.length * 0.5
+    const overallScore = Math.max(0, Math.round((overallBase - totalPenalty) * 10) / 10)
 
     const allIssues = [
       ...forbiddenIssues,

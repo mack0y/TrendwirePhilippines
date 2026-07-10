@@ -2223,9 +2223,14 @@ async function renderArticle(slug) {
     const pageUrl = encodeURIComponent(SITE_URL + '/article/' + article.slug)
     const shareText = encodeURIComponent(`${article.title} — ${SITE_NAME}`)
 
-    // Fetch related articles (same category, exclude current)
-    var relatedArticles = await fetchRelatedArticles(article.category || 'General', article.slug, 4)
-    var relatedHtml = relatedArticles.length ? renderRelatedSection(relatedArticles) : ''
+    // Fetch related articles (same category, exclude current) — gracefully handle failure
+    var relatedHtml = ''
+    try {
+      var relatedArticles = await fetchRelatedArticles(article.category || 'General', article.slug, 4)
+      relatedHtml = relatedArticles.length ? renderRelatedSection(relatedArticles) : ''
+    } catch (e) {
+      console.warn('Related articles unavailable, continuing without them:', e)
+    }
 
     var tags = article.tags || []
     var cat = article.category || 'General'
@@ -2250,7 +2255,7 @@ async function renderArticle(slug) {
             <a href="${catUrl}" class="category-link" onclick="event.preventDefault();navigate('/?category=${encodeURIComponent(cat)}')">
               <span class="category-badge">${cat}</span>
             </a>
-            <h1>${article.title}</h1>
+            <h1>${escHtml(article.title)}</h1>
             <div class="meta">
               <span>✍️ ${escHtml(article.author || 'TrendWire Staff')}</span>
               <span>📅 ${formatDateFull(article.published_at || article.created_at)}</span>
@@ -2268,7 +2273,7 @@ async function renderArticle(slug) {
           </div>
 
           <div class="article-content">
-            ${article.summary ? `<div class="summary-box">${article.summary}</div>` : ''}
+            ${article.summary ? `<div class="summary-box">${escHtml(article.summary)}</div>` : ''}
             ${renderedContent}
           </div>
 
@@ -2306,6 +2311,10 @@ async function renderArticle(slug) {
         </div>
       </div>
     `
+
+  // Update dark toggle icon after article render
+  const icon = document.querySelector('.dark-toggle-icon')
+  if (icon) icon.textContent = darkMode ? '☀️' : '🌙'
   } catch (e) {
     console.error('Failed to load article:', e)
     renderError(e.message)

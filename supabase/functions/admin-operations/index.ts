@@ -7,17 +7,42 @@ const corsHeaders = {
 }
 
 /*
- * SECURITY NOTE: This function should be protected by Supabase Auth JWT verification,
- * but the current frontend admin dashboard has no login system.
- * To harden: implement Supabase Auth login flow, then uncomment the JWT check below
- * and pass the user's access_token from the frontend.
- * For now, security relies on the `/admin` route being unindexed and unlisted.
+ * Authentication: Checks for a bearer token in the Authorization header.
+ * Set ADMIN_SECRET_KEY in your Supabase Edge Function secrets to protect
+ * this endpoint. Requests without a valid token receive a 401 response.
+ * Upgrade path: Replace the simple token check with Supabase Auth JWT
+ * verification once a login flow is built into the admin dashboard.
  */
+
+function checkAuth(req: Request): void {
+  const authHeader = req.headers.get('Authorization')
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    throw new AuthError('Missing or malformed Authorization header. Pass a Bearer token.')
+  }
+  const token = authHeader.slice('Bearer '.length)
+  const adminSecret = Deno.env.get('ADMIN_SECRET_KEY')
+  if (!adminSecret) {
+    throw new AuthError('ADMIN_SECRET_KEY not configured on the server. Set it in Edge Function secrets.')
+  }
+  if (token !== adminSecret) {
+    throw new AuthError('Invalid admin token.')
+  }
+}
+
+class AuthError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AuthError'
+  }
+}
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
   try {
+    // Authenticate every request before processing
+    checkAuth(req)
+
     const url = Deno.env.get('SUPABASE_URL') ?? ''
     const key = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     const sb = createClient(url, key)
@@ -170,7 +195,8 @@ serve(async (req) => {
         throw new Error(`Unknown action: ${action}`)
     }
   } catch (e) {
+    const status = e instanceof AuthError ? 401 : 500
     return new Response(JSON.stringify({ error: e.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 })
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status })
   }
 })

@@ -608,11 +608,52 @@ supabase functions deploy admin-operations --project-ref nvxykufajzppjtkmbtte
 git add -A && git commit -m "description" && git push
 ```
 
+|---
+
+## Transferable Patterns — SPA Client-Side Audit
+
+### Pattern 1: XSS Check — Find All innerHTML Template Strings
+When auditing a vanilla JS SPA that uses `innerHTML` with template literals:
+1. Find every `innerHTML = \`...\`` or `outerHTML = \`...\`` assignment
+2. For each `${var}` interpolation, check if `var` is wrapped in an escape function (`escHtml()`, `sanitize()`, DOMPurify)
+3. **Common misses**: sibling elements where one is escaped and another isn't (e.g., breadcrumb title escaped but h1 title not)
+4. Check the utility function itself — does it handle all 5 HTML entities (`< > & " '`)?
+5. Check the rich-content renderer (markdown → HTML) — does it escape BEFORE converting markdown?
+
+### Pattern 2: SPA Routing for GitHub Pages Sub-Path
+GitHub Pages serves sites at `https://user.github.io/repo-name/`. The SPA must:
+1. Have a `BASE_PATH` constant (e.g., `/repo-name`)
+2. Strip `BASE_PATH` from `location.pathname` in the router
+3. **404.html** must store the attempted URL in `sessionStorage` and redirect to root
+4. **app.js IIFE** must read `sessionStorage.redirect`, strip `BASE_PATH`, and call `history.replaceState()`
+5. **`navigate()`** must prepend `BASE_PATH` to all `history.pushState()` calls
+6. All `<a href>` fallback links must use `/{BASE_PATH}/...` for non-JS navigation
+7. Test these URL patterns: root, category filter, article slug, admin, 404 fallback, hash legacy
+
+### Pattern 3: Scrolling Ticker Duplication
+A seamless infinite-scroll ticker duplicates its content in the DOM:
+- Content is rendered twice: `${items}${items}`
+- CSS animation scrolls from `translateX(0)` to `translateX(-50%)` (half = one copy)
+- Every headline appears **twice** in the DOM by design
+- This is NOT a data bug — check the `articles` array for actual duplicates via Supabase query
+
+### Pattern 4: Dark Mode State Sync
+Dark mode must sync three things:
+1. **CSS class** on `<html>` — applied on load and toggle
+2. **localStorage** — persists preference
+3. **Toggle icon** — must reflect current state on ALL page renders (list and article)
+Common bug: icon updates on one page view but not another, or only on toggle but not on initial load.
+Prevent light flash: apply dark class in a blocking `<head>` script, not in deferred JS.
+
+### Pattern 5: Async Cleanup on Navigation
+In an SPA with async admin operations:
+- All async callbacks that modify DOM must check `currentRoute` before rendering
+- Otherwise navigating away during an async operation causes "render into wrong DOM" errors
+- Pattern: `if (currentRoute !== 'admin') return` at the top of each post-async callback
+
+### Pattern 6: Optional Content Should Never Crash the Page
+- Related articles, sidebar widgets, comments — any secondary content
+- Wrap each in its own try/catch, not the parent rendering function's try block
+- A failure in secondary content should log a warning and silently degrade, not crash the page
+
 ---
-
-## Security Notes
-
-- **Anon key in frontend** is safe — Supabase RLS restricts reads to `status = 'published'` only
-- **Service role key** is NEVER used client-side; reserved for backend scripts and Edge Functions
-- **GitHub Secrets** store all credentials for CI workflows
-- Row-Level Security is enabled on all tables + storage bucket

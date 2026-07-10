@@ -172,28 +172,40 @@ Respond with valid JSON only (no markdown, no code fences):
 {"title":"headline","summary":"2 sentence hook, max 160 chars","content":"full article (600-800 words, ends with '-- TrendWire Staff')","seo_description":"max 155 chars","tags":["t1","t2","t3","t4"],"image_prompt":"specific scene details only, no style tags — composition, subject, action, setting, lighting as comma-separated phrase"}`
 
     async function callLLM(messages: Array<{role: string; content: string}>, retryLabel: string): Promise<any> {
-      const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${orKey}`, 'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://github.com/mack0y/TrendwirePhilippines',
-          'X-Title': 'TrendWire Philippines',
-        },
-        body: JSON.stringify({
-          model: model || orModel, messages,
-          temperature: 0.8, max_tokens: 3000, response_format: { type: 'json_object' },
-        }),
-      })
+      const maxAttempts = 3
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const msgs = [...messages]
+        if (attempt > 1) {
+          msgs.push({ role: 'user', content: 'You MUST respond with valid JSON only. No other text. Follow the exact JSON format specified earlier.' })
+        }
+        const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${orKey}`, 'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://github.com/mack0y/TrendwirePhilippines',
+            'X-Title': 'TrendWire Philippines',
+          },
+          body: JSON.stringify({
+            model: model || orModel, messages: msgs,
+            temperature: 0.8, max_tokens: 3000, response_format: { type: 'json_object' },
+          }),
+        })
 
-      if (!res.ok) { const e = await res.json(); throw new Error(`OpenRouter ${retryLabel}: ${e.error?.message||res.status}`) }
+        if (!res.ok) { const e = await res.json(); throw new Error(`OpenRouter ${retryLabel}: ${e.error?.message||res.status}`) }
 
-      const completion = await res.json()
-      const raw = completion.choices?.[0]?.message?.content
-      if (!raw) throw new Error(`No content from LLM (${retryLabel})`)
+        const completion = await res.json()
+        const raw = completion.choices?.[0]?.message?.content
+        if (!raw) throw new Error(`No content from LLM (${retryLabel})`)
 
-      const parsed = JSON.parse(raw)
-      if (!parsed.title || !parsed.content) throw new Error(`Missing title or content (${retryLabel})`)
-      return parsed
+        try {
+          const parsed = JSON.parse(raw)
+          if (!parsed.title || !parsed.content) throw new Error(`Missing title or content`)
+          return parsed
+        } catch (e) {
+          if (attempt === maxAttempts) throw new Error(`Invalid JSON after ${maxAttempts} attempts (${retryLabel}): ${raw.slice(0, 100)}`)
+          console.log(`JSON parse failed attempt ${attempt}, retrying...`)
+        }
+      }
     }
 
     function wordCount(text: string): number {
