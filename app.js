@@ -976,7 +976,7 @@ function renderArticlesGrid() {
   // Filter by category and/or tag
   var filtered = articles
   if (categoryFilter) {
-    filtered = filtered.filter(function(a) { return (a.category || 'General') === categoryFilter })
+    filtered = filtered.filter(function(a) { return (a.category || 'General').toLowerCase() === categoryFilter.toLowerCase() })
   }
   if (tagFilter) {
     filtered = filtered.filter(function(a) {
@@ -1150,7 +1150,7 @@ async function renderList() {
     
     // ── Filtered Articles Grid ──
     const filtered = categoryFilter
-      ? articles.filter(a => (a.category || 'General') === categoryFilter)
+      ? articles.filter(a => (a.category || 'General').toLowerCase() === categoryFilter.toLowerCase())
       : articles
     
     const displayArticles = filtered.slice(0, loadedCount)
